@@ -1059,7 +1059,7 @@
         },
         {
             "name": "grasmash/composerize-drupal",
-            "version": "8.8.x-dev",
+            "version": "3047468.x-dev",
             "dist": {
                 "type": "path",
                 "url": "composer/Plugin/ComposerConverter",
@@ -6463,10 +6463,10 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "grasmash/composerize-drupal": 20,
         "drupal/core": 20,
         "drupal/core-project-message": 20,
         "drupal/core-vendor-hardening": 20,
+        "grasmash/composerize-drupal": 20,
         "behat/mink": 20,
         "behat/mink-selenium2-driver": 20
     },
