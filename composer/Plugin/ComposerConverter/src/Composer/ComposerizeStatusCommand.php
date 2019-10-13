@@ -2,11 +2,13 @@
 
 namespace Grasmash\ComposerConverter\Composer;
 
+use Composer\Command\BaseCommand;
+use Composer\Json\JsonFile;
+use Composer\Config\JsonConfigSource;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Composer\Command\BaseCommand;
-use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
 
@@ -18,45 +20,53 @@ use Symfony\Component\Yaml\Yaml;
  * - DRUPAL_ROOT is always where the drupal/drupal composer.json file lives.
  * - We want to warn people if they have extensions outside their installer
  *   paths.
+ * - Extensions in the file system are there for a reason.
  */
 class ComposerizeStatusCommand extends BaseCommand {
 
-  /** @var InputInterface */
-  protected $input;
-  protected $baseDir;
-  protected $composerConverterDir;
-  protected $templateComposerJson;
-  protected $rootComposerJsonPath;
-  protected $drupalRoot;
-  protected $drupalRootRelative;
-  protected $drupalCoreVersion;
-
-  /** @var Filesystem */
-  protected $fs;
-
+  /**
+   * {@inheritdoc}
+   */
   public function configure() {
     $this->setName('composerize-status');
-    $this->setDescription("Determine the status and eligibility for updating this project.");
-    $this->addOption('drupal-root', 'r', InputOption::VALUE_REQUIRED, 'The relative path to the Drupal root directory.', '.');
-    $this->addUsage('--drupal-root=./web');
+    $this->setDescription("Determine the status and eligibility for compozerizing this project.");
+    $this->addOption('project-root', 'r', InputOption::VALUE_REQUIRED, 'The relative path to the root composer.json file.', '.');
+    $this->addUsage('--project-root=.');
+  }
+
+  protected function infoBanner() {
+    return [
+      'The Drupal Composerizer Report',
+      '- Only works on drupal/drupal projects.',
+      '- Tells you what you should do and then you do it.',
+      '- Reports all extensions in the codebase.',
+    ];
   }
 
   /**
-   * @param \Symfony\Component\Console\Input\InputInterface $input
-   * @param \Symfony\Component\Console\Output\OutputInterface $output
-   *
-   * @return int
+   * {@inheritdoc}
    */
   public function execute(InputInterface $input, OutputInterface $output) {
     $io = $this->getIO();
-    $root = $input->getOption('drupal-root');
+    $root = $input->getOption('project-root');
+
+    $style = new SymfonyStyle($input, $output);
+    $style->block($this->infoBanner(), NULL, 'warning', ' ', TRUE);
+
+    $style->title('Drupal Composerizer');
+
+    /* @var $formatter \Symfony\Component\Console\Helper\FormatterHelper */
+/*    $formatter = $this->getHelper('formatter');
+    $block = $formatter->formatBlock($this->infoBanner(), 'warning', TRUE);
+    $io->write($block);*/
 
     if (!file_exists($root . '/composer.json')) {
       $io->writeError('No composer.json file found in root directory: ' . $root);
       return 1;
     }
 
-    $composer_json = json_decode(file_get_contents($root . '/composer.json'), TRUE);
+    $composer_json_file = $root . '/composer.json';
+    $composer_json = json_decode(file_get_contents($composer_json_file), TRUE);
 
     // Figure out if we have the things we need.
     $found = FALSE;
@@ -72,32 +82,14 @@ class ComposerizeStatusCommand extends BaseCommand {
       return 1;
     }
 
-    // Discover extensions.
-    $finder = new Finder();
-    $finder->in($root)
-      ->exclude(['core'])
-      ->name('*.info.yml')
-      ->filter(function ($info_file_name) {
-        $info = Yaml::parseFile($info_file_name);
-        if (isset($info['hidden']) && $info['hidden'] === TRUE) {
-          return FALSE;
-        }
-        if (isset($info['package']) && strtolower($info['package']) == 'testing') {
-          return FALSE;
-        }
-      });
-
     // Key is project, value is array of extensions in that project.
     $projects = [];
-    // List of just the extensions not arranged into projects.
-    $all_extensions = [];
     /* @var $file \SplFileInfo */
-    foreach ($finder as $file) {
+    foreach ($this->findInfoFiles($root) as $file) {
       $info = Yaml::parseFile($file->getPathname());
       $project = isset($info['project']) ? $info['project'] : '__unknown_project';
       $extension = basename($file->getPathname(), '.info.yml');
       $projects[$project][$extension] = $extension;
-      $all_extensions[$extension] = $extension;
     }
 
     // Reconcile extensions against require and require-dev.
@@ -108,7 +100,7 @@ class ComposerizeStatusCommand extends BaseCommand {
     }, ARRAY_FILTER_USE_KEY);
     // Make a list of module names from our package names.
     $requires_project_names = [];
-    foreach ($requires as $package => $constraint) {
+    foreach (array_keys($requires) as $package) {
       $boom_package = explode('/', $package);
       $project_name = $boom_package[1];
       $requires_project_names[$project_name] = $project_name;
@@ -144,7 +136,47 @@ class ComposerizeStatusCommand extends BaseCommand {
       $io->write('No unaccounted-for extensions.');
     }
 
+    $io->write($this->getPatchStatus($composer_json));
+
     return 0;
   }
+
+  /**
+   * Find all the info files in the codebase.
+   *
+   * Exclude hidden extensions and those in the 'testing' package.
+   *
+   * @param string $root
+   *
+   * @return \Symfony\Component\Finder\Finder
+   *   Finder object ready for iteration.
+   */
+  protected function findInfoFiles($root) {
+    // Discover extensions.
+    $finder = new Finder();
+    $finder->in($root)
+      ->exclude(['core'])
+      ->name('*.info.yml')
+      ->filter(function ($info_file) {
+        $info = Yaml::parseFile($info_file);
+        if (isset($info['hidden']) && $info['hidden'] === TRUE) {
+          return FALSE;
+        }
+        if (isset($info['package']) && strtolower($info['package']) == 'testing') {
+          return FALSE;
+        }
+      });
+    return $finder;
+  }
+
+  protected function getPatchStatus($composer_json) {
+    $messages = ['Checking for cweagans/composer-patches configuration...'];
+    
+
+
+    return $messages;
+  }
+
+
 
 }
