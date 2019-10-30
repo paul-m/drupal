@@ -1059,7 +1059,7 @@
         },
         {
             "name": "grasmash/composerize-drupal",
-            "version": "3047468.x-dev",
+            "version": "8.9.x-dev",
             "dist": {
                 "type": "path",
                 "url": "composer/Plugin/ComposerConverter",
