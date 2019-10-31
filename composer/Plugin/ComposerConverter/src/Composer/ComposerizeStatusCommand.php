@@ -11,6 +11,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
+use Composer\Package\RootPackage;
+use Composer\Composer;
 
 /**
  * Figure out whether we can or should update your setup for Composer.
@@ -23,6 +25,18 @@ use Symfony\Component\Yaml\Yaml;
  * - Extensions in the file system are there for a reason.
  */
 class ComposerizeStatusCommand extends BaseCommand {
+
+  /**
+   * The Composer object.
+   *
+   * @var \Composer\Composer
+   */
+  protected $composer;
+
+  public function __construct(Composer $composer, $name = null) {
+    $this->composer = $composer;
+    parent::__construct($name);
+  }
 
   /**
    * {@inheritdoc}
@@ -43,6 +57,15 @@ class ComposerizeStatusCommand extends BaseCommand {
     ];
   }
 
+  protected function isDrupalDrupalPackage($json) {
+    if (isset($json['name']) && $json['name'] == 'drupal/drupal') {
+      if (isset($json['type']) && $json['type'] == 'project') {
+        return TRUE;
+      }
+    }
+    return FALSE;
+  }
+
   /**
    * {@inheritdoc}
    */
@@ -50,35 +73,28 @@ class ComposerizeStatusCommand extends BaseCommand {
     $io = $this->getIO();
     $root = $input->getOption('project-root');
 
+    $root_package = $this->composer->getPackage();
+
     $style = new SymfonyStyle($input, $output);
     $style->block($this->infoBanner(), NULL, 'warning', ' ', TRUE);
 
     $style->title('Drupal Composerizer');
 
-    /* @var $formatter \Symfony\Component\Console\Helper\FormatterHelper */
-/*    $formatter = $this->getHelper('formatter');
-    $block = $formatter->formatBlock($this->infoBanner(), 'warning', TRUE);
-    $io->write($block);*/
+    $composer_json_file = $root . '/composer.json';
 
-    if (!file_exists($root . '/composer.json')) {
-      $io->writeError('No composer.json file found in root directory: ' . $root);
+    if (!file_exists($composer_json_file)) {
+      $io->writeError('<info>No composer.json file found in root directory: ' . $root . '</info>');
       return 1;
     }
 
-    $composer_json_file = $root . '/composer.json';
     $composer_json = json_decode(file_get_contents($composer_json_file), TRUE);
 
-    // Figure out if we have the things we need.
-    $found = FALSE;
-    if (isset($composer_json['name']) && $composer_json['name'] == 'drupal/drupal') {
-      if (isset($composer_json['type']) && $composer_json['type'] == 'project') {
-        $found = TRUE;
-        $io->write('Found drupal/drupal project.');
-      }
+    if ($this->isDrupalDrupalPackage($composer_json)) {
+      $io->write('Found drupal/drupal project.');
     }
-    if (!$found) {
+    else {
       $io->write('Unable to find a drupal/drupal project in root directory: ' . $root);
-      $io->write('This command only works with drupal/drupal.');
+      $io->write('<info>This command only works with drupal/drupal.</info>');
       return 1;
     }
 
@@ -121,6 +137,7 @@ class ComposerizeStatusCommand extends BaseCommand {
       }
     }
 
+    // Convert project names to package names.
     foreach ($need_these_packages as $key => $value) {
       $need_these_packages[$key] = 'drupal/' . $value;
     }
@@ -136,6 +153,7 @@ class ComposerizeStatusCommand extends BaseCommand {
       $io->write('No unaccounted-for extensions.');
     }
 
+    $io->write('Checking for cweagans/composer-patches configuration...');
     $io->write($this->getPatchStatus($composer_json));
 
     return 0;
@@ -170,13 +188,25 @@ class ComposerizeStatusCommand extends BaseCommand {
   }
 
   protected function getPatchStatus($composer_json) {
-    $messages = ['Checking for cweagans/composer-patches configuration...'];
-    
+    $messages = [];
+    $requires = array_merge($composer_json['require'] ?? [], $composer_json['require-dev'] ?? []);
 
+    if (!isset($requires['cweagans/composer-patches'])) {
+      $messages[] = '<info>This project does not require the cweagans/composer-patches plugin.</info>';
+    }
 
+    if (isset($composer_json['extra']['patches'])) {
+      $messages[] = 'Contains patches for these packages: ' . implode(', ', array_keys($composer_json['extra']['patches']));
+    }
+
+    if (isset($composer_json['extra']['patches-file'])) {
+      $messages[] = 'Uses a patches-file configuration.';
+    }
+
+    if (isset($composer_json['extra']['enable-patching'])) {
+      $messages[] = 'Enables patching from dependencies.';
+    }
     return $messages;
   }
-
-
 
 }
