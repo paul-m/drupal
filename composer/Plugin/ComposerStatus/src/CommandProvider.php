@@ -1,11 +1,8 @@
 <?php
 
-namespace Grasmash\ComposerConverter\Composer;
+namespace Drupal\Composer\Plugin\ComposerStatus;
 
 use Composer\Plugin\Capability\CommandProvider as CommandProviderCapability;
-
-use Composer\Composer;
-use Composer\IO\IOInterface;
 
 class CommandProvider implements CommandProviderCapability {
 
@@ -30,8 +27,7 @@ class CommandProvider implements CommandProviderCapability {
 
   public function getCommands() {
     return array(
-      new ComposerizeDrupalCommand(),
-      new ComposerizeStatusCommand($this->composer),
+      new StatusCommand($this->composer),
     );
   }
 
