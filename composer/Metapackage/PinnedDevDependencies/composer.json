@@ -19,7 +19,6 @@
         "doctrine/instantiator": "1.0.5",
         "drupal/coder": "8.3.6",
         "fabpot/goutte": "v3.2.3",
-        "grasmash/composerize-drupal": "8.9.x-dev",
         "instaclick/php-webdriver": "1.4.6",
         "jcalderonzumba/gastonjs": "v1.0.2",
         "jcalderonzumba/mink-phantomjs-driver": "v0.3.2",
