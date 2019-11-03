@@ -1,0 +1,19 @@
+{
+  "name": "drupal/core-composer-status",
+  "description": "Get the Composer status for this Drupal project.",
+  "type": "composer-plugin",
+  "require": {
+    "php": ">=5.6",
+    "composer-plugin-api": "^1.0.0",
+    "symfony/finder": "^3.4",
+    "symfony/yaml": "^3.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "Drupal\\Composer\\Plugin\\ComposerStatus\\": "src"
+    }
+  },
+  "extra": {
+    "class": "Drupal\\Composer\\Plugin\\ComposerStatus\\Plugin"
+  }
+}
