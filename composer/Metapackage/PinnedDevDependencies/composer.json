@@ -56,7 +56,6 @@
         "symfony/css-selector": "v3.4.33",
         "symfony/dom-crawler": "v3.4.33",
         "symfony/filesystem": "v3.4.33",
-        "symfony/finder": "v3.4.33",
         "symfony/lock": "v3.4.33",
         "symfony/phpunit-bridge": "v3.4.33",
         "theseer/tokenizer": "1.1.3",
