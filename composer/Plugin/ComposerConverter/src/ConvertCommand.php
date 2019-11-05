@@ -45,11 +45,15 @@ class ConvertCommand extends InitCommand {
    *
    * Current allowable operations:
    * - renamePackage
+   *   - New package name.
    * - addDependency
+   *   - Array of arrays: ['package/name', 'constraint']
    * - removeDependency
+   *   - Array of strings: 'package/name'
    * - removeExtension
+   *   - Array of extension info file paths.
    * - performUpdate
-   * - showSteps
+   *   - Any truthy value.
    *
    * @var string[][]
    */
@@ -124,15 +128,13 @@ EOT
     // New package name.
     $this->queue['renamePackage'] = $input->getOption('package-name');
 
-    // Pretend we derived this information.
-    $this->queue['addDependency'] = [
-      ['crell/api-problem', '^8.9'],
-    ];
+    // Stand-in for removing e.g. drupal-project stuff.
     $this->queue['removeDependency'] = [
       'phpspec/prophecy',
       'symfony/debug',
     ];
 
+    // Deal with unreconciled extensions that we know we can require.
     if ($packages = $this->reconciler->getUnreconciledPackages()) {
       $composer = $this->getComposer(true, $input->getOption('no-plugins'));
       $repos = $composer->getRepositoryManager()->getRepositories();
@@ -142,17 +144,13 @@ EOT
       $this->repos = new CompositeRepository(array_merge(
           array(new PlatformRepository(array(), $platformOverrides)), $repos
       ));
-
       if ($composer->getPackage()->getPreferStable()) {
         $preferredStability = 'stable';
       }
       else {
         $preferredStability = $composer->getPackage()->getMinimumStability();
       }
-
       $phpVersion = $this->repos->findPackage('php', '*')->getPrettyVersion();
-
-
       $requirements = $this->determineRequirements($input, $output, $packages, $phpVersion, $preferredStability, !$input->getOption('no-update'));
       foreach($this->formatRequirements($requirements) as $package => $constraint) {
         $this->queue['addDependency'][] = [
@@ -172,9 +170,7 @@ EOT
       $output->writeln('<info>The following actions will be performed:</info>');
       $this->describeQueue($input, $output);
       $helper = $this->getHelper('question');
-      if (!$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', false))) {
-        $this->userCanceled = TRUE;
-      }
+      $this->userCanceled  = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', false));
     }
   }
 
@@ -190,8 +186,7 @@ EOT
       return;
     }
 
-    $output->writeln('executing!');
-
+    $output->writeln('<info>Executing...</info>');
 
     /*    if (function_exists('pcntl_async_signals')) {
       pcntl_async_signals(true);
@@ -425,7 +420,7 @@ EOT
             break;
 
           case 'showSteps':
-            // Next steps only show during perform.
+            $style->listing($this->queue[$operation]);
             break;
         }
       }
@@ -442,7 +437,7 @@ EOT
           case 'renamePackage':
             $old_name = $this->rootPackage->getName();
             $new_name = $this->queue[$operation];
-            $io->write("Renaming $old_name to $new_name");
+            $style->listing(["$old_name -> $new_name"]);
             $this->opRenamePackage($json, $new_name);
             break;
 
@@ -471,7 +466,7 @@ EOT
             break;
 
           case 'performUpdate':
-            // Update will be handled in execute().
+            // doUpdate() in a try block.
             break;
 
           case 'showSteps':
