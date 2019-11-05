@@ -10,9 +10,27 @@ class ExtensionReconciler {
 
   protected $exoticSetupExtensions = NULL;
   protected $needThesePackages = NULL;
-
   protected $rootPackage;
   protected $workingDir;
+
+  /**
+   * All unreconciled extensions organized by project.
+   *
+   * Only extensions which have a project can be found here.
+   *
+   * @var string[][]
+   */
+  protected $projects;
+
+  /**
+   * All reconciled extensions organized by project.
+   *
+   * If an extension is required in composer.json and it has a project key, it
+   * is listed here, keyed by its d.o project name.
+   *
+   * @var string[][]
+   */
+  protected $reconciledProjects;
 
   /**
    * Construct a reconciler.
@@ -39,7 +57,6 @@ class ExtensionReconciler {
     return $this->needThesePackages;
   }
 
-
   /**
    * Get packages for extensions in filesystem we don't know how to deal with.
    *
@@ -56,13 +73,19 @@ class ExtensionReconciler {
    * Process our package and filesystem into reconcilable information.
    */
   protected function processNeededPackages() {
-    $projects = [];
+    $this->projects = [];
+    $extension_objects = [];
     /* @var $file \SplFileInfo */
     foreach ($this->findInfoFiles(realpath($this->workingDir)) as $file) {
       $info = Yaml::parseFile($file->getPathname());
       $project = isset($info['project']) ? $info['project'] : '__unknown_project';
       $extension = basename($file->getPathname(), '.info.yml');
-      $projects[$project][$extension] = $extension;
+      $this->projects[$project][$extension] = $extension;
+      $e = new Extension();
+      $e->name = basename($file->getPathname(), '.info.yml');
+      $e->pathname = $file->getPathname();
+      $e->project = isset($info['project']) ? $info['project'] : NULL;
+      $extension_objects[$e->name] = $e;
     }
 
     // Reconcile extensions against require and require-dev.
@@ -77,23 +100,30 @@ class ExtensionReconciler {
       $boom_package = explode('/', $package);
       $extension_or_project_name = $boom_package[1];
       $requires_ext_or_proj_names[$extension_or_project_name] = $extension_or_project_name;
+      // If our extension is already required and belongs to a project, then
+      // we should include that project in the list so that we account for other
+      // extensions in the same project.
+      if (isset($extension_objects[$extension_or_project_name]) || !empty($extension_objects[$extension_or_project_name]->project)) {
+        $p = $extension_objects[$extension_or_project_name]->project;
+        $requires_ext_or_proj_names[$p] = $p;
+      }
     }
 
     // Handle exotic extensions which don't have a project name. These could
     // need a special repo or to not be required at all, so we just punt on
     // them.
     $this->exoticSetupExtensions = [];
-    if (isset($projects['__unknown_project'])) {
-      foreach ($projects['__unknown_project'] as $extension) {
+    if (isset($this->projects['__unknown_project'])) {
+      foreach ($this->projects['__unknown_project'] as $extension) {
         $this->exoticSetupExtensions[$extension] = $extension;
       }
-      unset($projects['__unknown_project']);
+      unset($this->projects['__unknown_project']);
     }
 
     // D.O's Composer facade allows you to require an extension by extension
     // name or by project name, so we have to reconcile that.
     $this->needThesePackages = [];
-    foreach ($projects as $project => $extensions) {
+    foreach ($this->projects as $project => $extensions) {
       // The user has already required the project in their composer.json by
       // project name. This also covers extensions where the extension name is
       // the same as the d.o project name.

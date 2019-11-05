@@ -14,6 +14,6 @@
     }
   },
   "extra": {
-    "class": "Drupal\\Composer\\Plugin\\ComposerConverter\\Plugin"
+    "class": "Drupal\\Composer\\Plugin\\ComposerConverter\\ConverterPlugin"
   }
 }
