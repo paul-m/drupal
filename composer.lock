@@ -5,10 +5,14 @@
         "This file is @generated automatically"
     ],
 <<<<<<< HEAD
+<<<<<<< HEAD
     "content-hash": "c6c500e6567b37ef3e100b285ab9910c",
 =======
     "content-hash": "51cdede7132c150175efb3799704f6f4",
 >>>>>>> 22
+=======
+    "content-hash": "cb1c7b25ffd5576fa2047fe2e41f8b92",
+>>>>>>> started converter
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -880,6 +884,31 @@
                 "GPL-2.0-or-later"
             ],
             "description": "Drupal is an open source content management platform powering millions of websites and applications."
+        },
+        {
+            "name": "drupal/core-composer-converter",
+            "version": "8.9.x-dev",
+            "dist": {
+                "type": "path",
+                "url": "composer/Plugin/ComposerConverter",
+                "reference": "0080f53d29a182e511553af7516cf565c460859f"
+            },
+            "require": {
+                "composer-plugin-api": "^1.0.0",
+                "php": ">=5.6",
+                "symfony/finder": "^3.4",
+                "symfony/yaml": "^3.4"
+            },
+            "type": "composer-plugin",
+            "extra": {
+                "class": "Drupal\\Composer\\Plugin\\ComposerConverter\\Plugin"
+            },
+            "autoload": {
+                "psr-4": {
+                    "Drupal\\Composer\\Plugin\\ComposerConverter\\": "src"
+                }
+            },
+            "description": "Get the Composer status for this Drupal project."
         },
         {
             "name": "drupal/core-composer-status",
@@ -6295,8 +6324,9 @@
     "stability-flags": {
         "drupal/core": 20,
         "drupal/core-project-message": 20,
-        "drupal/core-vendor-hardening": 20,
+        "drupal/core-composer-converter": 20,
         "drupal/core-composer-status": 20,
+        "drupal/core-vendor-hardening": 20,
         "behat/mink": 20,
         "behat/mink-selenium2-driver": 20
     },
