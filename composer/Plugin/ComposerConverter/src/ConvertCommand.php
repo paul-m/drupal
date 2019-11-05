@@ -20,6 +20,9 @@ use Composer\Util\Silencer;
 use Composer\Command\InitCommand;
 use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
 
+use Drupal\Composer\Plugin\ComposerConverter\Op\RenamePackageOp;
+use Drupal\Composer\Plugin\ComposerConverter\Op\AddDependencyOp;
+
 /**
  */
 class ConvertCommand extends InitCommand {
@@ -35,16 +38,13 @@ class ConvertCommand extends InitCommand {
    */
   protected $reconciler;
 
-  public function __construct($name = null) {
-    parent::__construct($name);
-  }
-
   protected function configure() {
     $this
       ->setName('drupal-legacy-convert')
       ->setDescription('Convert your Drupal project to a Composer-based one.')
       ->setDefinition(array(
-        new InputArgument('packages', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'Optional package name can also include a version constraint, e.g. foo/bar or foo/bar:1.0.0 or foo/bar=1.0.0 or "foo/bar 1.0.0"'),
+        new InputArgument('core-version', InputArgument::OPTIONAL, 'Minimum Drupal core version to require.', '^8.9'),
+
         new InputOption('dev', null, InputOption::VALUE_NONE, 'Add requirement to require-dev.'),
         new InputOption('prefer-source', null, InputOption::VALUE_NONE, 'Forces installation from package sources when possible, including VCS information.'),
         new InputOption('prefer-dist', null, InputOption::VALUE_NONE, 'Forces installation from package dist even for dev versions.'),
@@ -62,19 +62,14 @@ class ConvertCommand extends InitCommand {
         new InputOption('optimize-autoloader', 'o', InputOption::VALUE_NONE, 'Optimize autoloader during autoloader dump'),
         new InputOption('classmap-authoritative', 'a', InputOption::VALUE_NONE, 'Autoload classes from the classmap only. Implicitly enables `--optimize-autoloader`.'),
         new InputOption('apcu-autoloader', null, InputOption::VALUE_NONE, 'Use APCu to cache found/not-found classes.'),
+
+
+        new InputOption('prefer-projects', NULL, InputOption::VALUE_NONE, 'When possible, requires drupal.org project name rather than module name.'),
+        new InputOption('dry-run', NULL, InputOption::VALUE_NONE, 'Display all the changes that would occur, without performing them.')
       ))
       ->setHelp(
         <<<EOT
-The require command adds required packages to your composer.json and installs them.
-
-If you do not specify a package, composer will prompt you to search for a package, and given results, provide a list of
-matches to require.
-
-If you do not specify a version constraint, composer will choose a suitable one based on the available package versions.
-
-If you do not want to install the new dependencies immediately you can call it with --no-update
-
-Read more at https://getcomposer.org/doc/03-cli.md#require
+There will be help here, eventually.
 EOT
       )
     ;
@@ -116,6 +111,13 @@ EOT
 
     $composer = $this->getComposer(true, $input->getOption('no-plugins'));
     $repos = $composer->getRepositoryManager()->getRepositories();
+
+
+    $root_package = $composer->getPackage();
+    if ($root_package->getName() != 'drupal/drupal') {
+      $this->getIO()->write('<error>This command only operates on drupal/drupal packages.</error>');
+      return 1;
+    }
 
     $platformOverrides = $composer->getConfig()->get('platform') ?: array();
     // initialize $this->repos as it is used by the parent InitCommand
@@ -240,7 +242,8 @@ EOT
   }
 
   protected function interact(InputInterface $input, OutputInterface $output) {
-    return;
+    $add = new AddDependencyOp('crell/api-problem', '@stable');
+    $this->getIO()->write($add->summarize());
   }
 
   public function revertComposerFile($hardExit = true) {
