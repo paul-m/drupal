@@ -35,13 +35,6 @@ class ExtensionReconciler {
     $this->workingDir = $working_dir;
   }
 
-  public function getUnreconciledProjects() {
-    if ($this->projects === NULL) {
-      $this->processNeededPackages();
-    }
-    return $this->projects;
-  }
-
   /**
    * Get packages for extensions in filesystem, but not in composer.json.
    *
