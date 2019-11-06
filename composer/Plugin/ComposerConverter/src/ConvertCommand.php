@@ -3,41 +3,28 @@
 namespace Drupal\Composer\Plugin\ComposerConverter;
 
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Composer\Factory;
-use Composer\Installer;
 use Composer\Json\JsonFile;
 use Composer\Json\JsonManipulator;
-use Composer\Plugin\CommandEvent;
-use Composer\Plugin\PluginEvents;
 use Composer\Repository\CompositeRepository;
 use Composer\Repository\PlatformRepository;
-use Composer\IO\IOInterface;
 use Composer\Util\Silencer;
 use Composer\Command\InitCommand;
 use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
-use Composer\Package\RootPackageInterface;
+use Symfony\Component\Console\Input\ArrayInput;
 
 /**
  */
 class ConvertCommand extends InitCommand {
 
-  private $newlyCreated;
   private $json;
   private $file;
   private $composerBackup;
   protected $userCanceled = FALSE;
-
-  /**
-   * The package we're modifying.
-   *
-   * @var \Composer\Package\RootPackageInterface
-   */
-  protected $rootPackage;
 
   /**
    * Many operations to perform, keyed by operation.
@@ -65,20 +52,14 @@ class ConvertCommand extends InitCommand {
    * @var string[]
    */
   protected $queueOrder = [
-    'Add dependencies:' => 'addDependency',
-    'Add development dependencies:' => 'addDevDependency',
-    'Remove dependencies:' => 'removeDependency',
-    'Remove extensions from the file system:' => 'removeExtension',
-    'Rename the package:' => 'renamePackage',
+    'Add dependencies' => 'addDependency',
+    'Add development dependencies' => 'addDevDependency',
+    'Remove dependencies' => 'removeDependency',
+    'Remove extensions from the file system' => 'removeExtension',
+    'Rename the package' => 'renamePackage',
     'Perform Composer update' => 'performUpdate',
     'Next steps' => 'nextSteps',
   ];
-
-  /**
-   *
-   * @var \Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler
-   */
-  protected $reconciler;
 
   protected function configure() {
     $this
@@ -105,8 +86,9 @@ EOT
   protected function initialize(InputInterface $input, OutputInterface $output) {
     parent::initialize($input, $output);
     $output->writeln('<info>Gathering information...</info>');
-    $this->rootPackage = $this->getComposer()->getPackage();
-    $this->reconciler = new ExtensionReconciler($this->rootPackage, $input->getOption('working-dir'));
+    $reconciler = new ExtensionReconciler(
+      $this->getComposer()->getPackage(), $input->getOption('working-dir'
+    ));
 
     // Always perform the update unless the user tells us not to.
     $this->queue['performUpdate'] = TRUE;
@@ -117,6 +99,24 @@ EOT
     // New package name.
     $this->queue['renamePackage'] = $input->getOption('package-name');
 
+    // All the stuff we need in order to convert drupal/drupal to
+    // drupal/legacy-project.
+    $this->queue['removeDependency'] = [
+      'drupal/core'
+    ];
+
+    $legacy_dependencies = [
+      'composer/installers' => '^1.2',
+      'drupal/core-composer-scaffold' => '^8.8',
+      'drupal/core-project-message' => '^8.8',
+      'drupal/core-recommended' => '^8.8',
+      'drupal/core-vendor-hardening' => '^8.8',
+    ];
+    foreach ($legacy_dependencies as $package => $constraint) {
+      $this->queue['addDependency'][] = [$package, $constraint];
+    }
+    $this->queue['addDevDependency'][] = ['drupal/core-dev', '^8.8', TRUE];
+
     // Stand-in for removing e.g. drupal-project stuff.
     $this->queue['removeDependency'] = [
       'phpspec/prophecy',
@@ -124,7 +124,7 @@ EOT
     ];
 
     // Deal with unreconciled extensions that we know we can require.
-    if ($packages = $this->reconciler->getUnreconciledPackages()) {
+    if ($packages = $reconciler->getUnreconciledPackages()) {
       $composer = $this->getComposer(true, $input->getOption('no-plugins'));
       $repos = $composer->getRepositoryManager()->getRepositories();
 
@@ -147,14 +147,15 @@ EOT
       }
     }
 
-    if ($exotic = $this->reconciler->getExoticPackages()) {
+    if ($exotic = $reconciler->getExoticPackages()) {
       $this->queue['nextSteps'][] = 'Deal with these extensions: ' . implode(', ', $exotic);
     }
   }
 
   protected function interact(InputInterface $input, OutputInterface $output) {
     if (!empty($this->queue) && !$input->getOption('no-interaction')) {
-      // @todo Warning here with something like press space to continue.
+      // @todo Wall of text type warning here with something like press space
+      //   to continue.
       $output->writeln('<info>The following actions will be performed:</info>');
       $this->describeQueue($input, $output);
       $helper = $this->getHelper('question');
@@ -167,8 +168,8 @@ EOT
       return;
     }
 
-    // If it's a dry run and the user didn't interact, then we should describe
-    // the queue and then stop.
+    // If it's a dry run and the user shouldn't interact, then we should
+    // describe the queue and then stop.
     if ($input->getOption('dry-run') && $input->getOption('no-interaction')) {
       $this->describeQueue($input, $output);
       return;
@@ -195,11 +196,12 @@ EOT
     $this->json = new JsonFile($this->file);
     $this->composerBackup = file_get_contents($this->json->getPath());
 
-    // check for writability by writing to the file as is_writable can not be trusted on network-mounts
-    // see https://github.com/composer/composer/issues/8231 and https://bugs.php.net/bug.php?id=68926
+    // check for writability by writing to the file as is_writable can not be
+    // trusted on network-mounts see
+    // https://github.com/composer/composer/issues/8231 and
+    // https://bugs.php.net/bug.php?id=68926
     if (!is_writable($this->file) && !Silencer::call('file_put_contents', $this->file, $this->composerBackup)) {
       $io->writeError('<error>' . $this->file . ' is not writable.</error>');
-
       return 1;
     }
 
@@ -212,79 +214,11 @@ EOT
     }
   }
 
-  private function doUpdate(InputInterface $input, OutputInterface $output, IOInterface $io, array $requirements) {
-    // Update packages
-    $this->resetComposer();
-    $composer = $this->getComposer(true, $input->getOption('no-plugins'));
-    $composer->getDownloadManager()->setOutputProgress(!$input->getOption('no-progress'));
-
-    $updateDevMode = !$input->getOption('update-no-dev');
-    $optimize = $input->getOption('optimize-autoloader') || $composer->getConfig()->get('optimize-autoloader');
-    $authoritative = $input->getOption('classmap-authoritative') || $composer->getConfig()->get('classmap-authoritative');
-    $apcu = $input->getOption('apcu-autoloader') || $composer->getConfig()->get('apcu-autoloader');
-
-    $commandEvent = new CommandEvent(PluginEvents::COMMAND, 'require', $input, $output);
-    $composer->getEventDispatcher()->dispatch($commandEvent->getName(), $commandEvent);
-
-    $install = Installer::create($io, $composer);
-
-    $install
-      ->setVerbose($input->getOption('verbose'))
-      ->setPreferSource($input->getOption('prefer-source'))
-      ->setPreferDist($input->getOption('prefer-dist'))
-      ->setDevMode($updateDevMode)
-      ->setRunScripts(!$input->getOption('no-scripts'))
-      ->setSkipSuggest($input->getOption('no-suggest'))
-      ->setOptimizeAutoloader($optimize)
-      ->setClassMapAuthoritative($authoritative)
-      ->setApcuAutoloader($apcu)
-      ->setUpdate(true)
-      ->setUpdateWhitelist(array_keys($requirements))
-      ->setWhitelistTransitiveDependencies($input->getOption('update-with-dependencies'))
-      ->setWhitelistAllDependencies($input->getOption('update-with-all-dependencies'))
-      ->setIgnorePlatformRequirements($input->getOption('ignore-platform-reqs'))
-      ->setPreferStable($input->getOption('prefer-stable'))
-      ->setPreferLowest($input->getOption('prefer-lowest'))
-    ;
-
-    $status = $install->run();
-    if ($status !== 0) {
-      $this->revertComposerFile(false);
-    }
-
-    return $status;
-  }
-
-  private function updateFileCleanly($json, array $new, $requireKey, $removeKey, $sortPackages) {
-    $contents = file_get_contents($json->getPath());
-
-    $manipulator = new JsonManipulator($contents);
-
-    foreach ($new as $package => $constraint) {
-      if (!$manipulator->addLink($requireKey, $package, $constraint, $sortPackages)) {
-        return false;
-      }
-      if (!$manipulator->removeSubNode($removeKey, $package)) {
-        return false;
-      }
-    }
-
-    file_put_contents($json->getPath(), $manipulator->getContents());
-
-    return true;
-  }
-
   public function revertComposerFile($hardExit = true) {
     $io = $this->getIO();
 
-    if ($this->newlyCreated) {
-      $io->writeError("\n" . '<error>Installation failed, deleting ' . $this->file . '.</error>');
-      unlink($this->json->getPath());
-    }
-    else {
-      $io->writeError("\n" . '<error>Installation failed, reverting ' . $this->file . ' to its original content.</error>');
-      file_put_contents($this->json->getPath(), $this->composerBackup);
-    }
+    $io->writeError("\n" . '<error>Conversion failed, reverting ' . $this->file . ' to its original content.</error>');
+    file_put_contents($this->json->getPath(), $this->composerBackup);
 
     if ($hardExit) {
       exit(1);
@@ -365,43 +299,31 @@ EOT
   protected function performQueue(JsonFile $json, InputInterface $input, OutputInterface $output) {
     $style = new SymfonyStyle($input, $output);
     $io = $this->getIO();
+    $sort_packages = $input->getOption('sort-packages') || $this->getComposer()->getConfig()->get('sort-packages');
+
     foreach ($this->queueOrder as $description => $operation) {
       if (isset($this->queue[$operation])) {
-        $io->write($description);
+        $io->write(' * ' . $description);
         switch ($operation) {
           case 'renamePackage':
-            $old_name = $this->rootPackage->getName();
-            $new_name = $this->queue[$operation];
-            $style->listing(["$old_name -> $new_name"]);
-            $this->opRenamePackage($json, $new_name);
+            $this->opRenamePackage($json, $this->queue[$operation]);
             break;
 
           case 'addDependency':
-            $style->listing(
-              array_map(function ($item) {
-                $message = $item[0] . ':' . $item[1];
-                if (isset($item[2])) {
-                  $message .= ' (dev)';
-                }
-                return $message;
-              }, $this->queue[$operation])
-            );
+          case 'addDevDependency':
             foreach ($this->queue[$operation] as $add) {
-              $this->opAddDependency(
-                $this->json, $add[0], $add[1], isset($add[2]), $input->getOption('sort-packages') || $this->getComposer()->getConfig()->get('sort-packages')
-              );
+              $this->opAddDependency($this->json, $add[0], $add[1], isset($add[2]), $sort_packages);
             }
             break;
 
           case 'removeDependency':
-            $style->listing($this->queue[$operation]);
             foreach ($this->queue[$operation] as $remove) {
               $this->opRemoveDependency($this->json, $remove);
             }
             break;
 
           case 'performUpdate':
-            // doUpdate() in a try block.
+            $this->opUpdate($output);
             break;
 
           case 'nextSteps':
@@ -444,6 +366,17 @@ EOT
     $manipulator->addLink($require_key, $dependency, $constraint, $sort_packages);
 
     file_put_contents($json->getPath(), $manipulator->getContents());
+  }
+
+  protected function opUpdate(OutputInterface $output) { {
+      try {
+        $update_command = $this->getApplication()->find('update');
+        $update_command->run(new ArrayInput(array()), $output);
+      }
+      catch (\Exception $e) {
+        $this->getIO()->writeError('Could not install dependencies. Run `composer install` to see more information.');
+      }
+    }
   }
 
 }
