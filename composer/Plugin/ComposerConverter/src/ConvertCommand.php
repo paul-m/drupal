@@ -102,7 +102,9 @@ EOT
     // Start adding stuff we need in order to convert drupal/drupal to
     // drupal/legacy-project.
     $this->queue['removeDependency'] = [
-      'drupal/core'
+      'drupal/core',
+      'webflo/drupal-core-strict',
+      'webflo/drupal-core-require-dev',
     ];
 
     $legacy_dependencies = [
@@ -115,7 +117,7 @@ EOT
     foreach ($legacy_dependencies as $package => $constraint) {
       $this->queue['addDependency'][] = [$package, $constraint];
     }
-    $this->queue['addDevDependency'][] = ['drupal/core-dev', '^8.9', TRUE];
+    $this->queue['addDevDependency'][] = ['drupal/core-dev-pinned', '^8.9', TRUE];
 
     // Deal with unreconciled extensions that we know we can require.
     if ($packages = $reconciler->getUnreconciledPackages()) {
