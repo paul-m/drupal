@@ -99,7 +99,7 @@ EOT
     // New package name.
     $this->queue['renamePackage'] = $input->getOption('package-name');
 
-    // All the stuff we need in order to convert drupal/drupal to
+    // Start adding stuff we need in order to convert drupal/drupal to
     // drupal/legacy-project.
     $this->queue['removeDependency'] = [
       'drupal/core'
@@ -107,15 +107,15 @@ EOT
 
     $legacy_dependencies = [
       'composer/installers' => '^1.2',
-      'drupal/core-composer-scaffold' => '^8.8',
-      'drupal/core-project-message' => '^8.8',
-      'drupal/core-recommended' => '^8.8',
-      'drupal/core-vendor-hardening' => '^8.8',
+      'drupal/core-composer-scaffold' => '^8.9',
+      'drupal/core-project-message' => '^8.9',
+      'drupal/core-recommended' => '^8.9',
+      'drupal/core-vendor-hardening' => '^8.9',
     ];
     foreach ($legacy_dependencies as $package => $constraint) {
       $this->queue['addDependency'][] = [$package, $constraint];
     }
-    $this->queue['addDevDependency'][] = ['drupal/core-dev', '^8.8', TRUE];
+    $this->queue['addDevDependency'][] = ['drupal/core-dev', '^8.9', TRUE];
 
     // Deal with unreconciled extensions that we know we can require.
     if ($packages = $reconciler->getUnreconciledPackages()) {
