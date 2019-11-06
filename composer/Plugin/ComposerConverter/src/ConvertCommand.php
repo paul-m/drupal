@@ -47,6 +47,7 @@ class ConvertCommand extends InitCommand {
    * - renamePackage
    *   - New package name.
    * - addDependency
+   * - addDevDependency
    *   - Array of arrays: ['package/name', 'constraint']
    * - removeDependency
    *   - Array of strings: 'package/name'
@@ -66,11 +67,12 @@ class ConvertCommand extends InitCommand {
    */
   protected $queueOrder = [
     'Add dependencies:' => 'addDependency',
+    'Add development dependencies:' => 'addDevDependency',
     'Remove dependencies:' => 'removeDependency',
     'Remove extensions from the file system:' => 'removeExtension',
     'Rename the package:' => 'renamePackage',
     'Perform Composer update' => 'performUpdate',
-    'Next steps' => 'showSteps',
+    'Next steps' => 'nextSteps',
   ];
 
   /**
@@ -152,25 +154,23 @@ EOT
       }
       $phpVersion = $this->repos->findPackage('php', '*')->getPrettyVersion();
       $requirements = $this->determineRequirements($input, $output, $packages, $phpVersion, $preferredStability, !$input->getOption('no-update'));
-      foreach($this->formatRequirements($requirements) as $package => $constraint) {
-        $this->queue['addDependency'][] = [
-          $package,
-          $constraint,
-        ];
+      foreach ($this->formatRequirements($requirements) as $package => $constraint) {
+        $this->queue['addDependency'][] = [$package, $constraint];
       }
     }
 
     if ($exotic = $this->reconciler->getExoticPackages()) {
-      $this->queue['showSteps'][] = 'Deal with these extensions: ' . implode(', ', $exotic);
+      $this->queue['nextSteps'][] = 'Deal with these extensions: ' . implode(', ', $exotic);
     }
   }
 
   protected function interact(InputInterface $input, OutputInterface $output) {
     if (!empty($this->queue) && !$input->getOption('no-interaction')) {
+      // @todo Warning here with something like press space to continue.
       $output->writeln('<info>The following actions will be performed:</info>');
       $this->describeQueue($input, $output);
       $helper = $this->getHelper('question');
-      $this->userCanceled  = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', false));
+      $this->userCanceled = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', false));
     }
   }
 
@@ -406,6 +406,18 @@ EOT
             );
             break;
 
+          case 'addDevDependency':
+            $style->listing(
+              array_map(function ($item) {
+                $message = $item[0] . ':' . $item[1];
+                if (isset($item[2])) {
+                  $message .= ' (dev)';
+                }
+                return $message;
+              }, $this->queue[$operation])
+            );
+            break;
+
           case 'removeDependency':
             $style->listing($this->queue[$operation]);
             break;
@@ -419,7 +431,7 @@ EOT
             $style->listing(['Will perform update.']);
             break;
 
-          case 'showSteps':
+          case 'nextSteps':
             $style->listing($this->queue[$operation]);
             break;
         }
@@ -469,7 +481,7 @@ EOT
             // doUpdate() in a try block.
             break;
 
-          case 'showSteps':
+          case 'nextSteps':
             $style->listing($this->queue[$operation]);
             break;
         }
@@ -479,7 +491,6 @@ EOT
 
   protected function opRenamePackage(JsonFile $json, $new_name) {
     $contents = file_get_contents($json->getPath());
-
     $manipulator = new JsonManipulator($contents);
 
     $manipulator->removeMainKey('name');
@@ -491,9 +502,11 @@ EOT
   protected function opRemoveDependency(JsonFile $json, $dependency) {
     $contents = file_get_contents($json->getPath());
     $manipulator = new JsonManipulator($contents);
+
     foreach (['require', 'require-dev'] as $require_key) {
       $manipulator->removeSubNode($require_key, $dependency);
     }
+
     file_put_contents($json->getPath(), $manipulator->getContents());
   }
 
@@ -502,9 +515,9 @@ EOT
     if ($is_dev) {
       $require_key = 'require-dev';
     }
-
     $contents = file_get_contents($json->getPath());
     $manipulator = new JsonManipulator($contents);
+
     $manipulator->addLink($require_key, $dependency, $constraint, $sort_packages);
 
     file_put_contents($json->getPath(), $manipulator->getContents());

@@ -20,17 +20,7 @@ class ExtensionReconciler {
    *
    * @var string[][]
    */
-  protected $projects;
-
-  /**
-   * All reconciled extensions organized by project.
-   *
-   * If an extension is required in composer.json and it has a project key, it
-   * is listed here, keyed by its d.o project name.
-   *
-   * @var string[][]
-   */
-  protected $reconciledProjects;
+  protected $projects = NULL;
 
   /**
    * Construct a reconciler.
@@ -43,6 +33,13 @@ class ExtensionReconciler {
   public function __construct(RootPackageInterface $root_package, $working_dir) {
     $this->rootPackage = $root_package;
     $this->workingDir = $working_dir;
+  }
+
+  public function getUnreconciledProjects() {
+    if ($this->projects === NULL) {
+      $this->processNeededPackages();
+    }
+    return $this->projects;
   }
 
   /**
