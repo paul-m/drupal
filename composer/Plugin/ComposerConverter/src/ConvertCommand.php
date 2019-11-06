@@ -10,7 +10,6 @@ use Composer\Factory;
 use Composer\Installer;
 use Composer\Json\JsonFile;
 use Composer\Json\JsonManipulator;
-use Composer\Package\Version\VersionParser;
 use Composer\Plugin\CommandEvent;
 use Composer\Plugin\PluginEvents;
 use Composer\Repository\CompositeRepository;
@@ -86,30 +85,18 @@ class ConvertCommand extends InitCommand {
       ->setName('drupal-legacy-convert')
       ->setDescription('Convert your Drupal project to a Composer-based one.')
       ->setDefinition(array(
-        new InputOption('dev', null, InputOption::VALUE_NONE, 'Add requirement to require-dev.'),
-        new InputOption('prefer-source', null, InputOption::VALUE_NONE, 'Forces installation from package sources when possible, including VCS information.'),
-        new InputOption('prefer-dist', null, InputOption::VALUE_NONE, 'Forces installation from package dist even for dev versions.'),
-        new InputOption('no-progress', null, InputOption::VALUE_NONE, 'Do not output download progress.'),
-        new InputOption('no-suggest', null, InputOption::VALUE_NONE, 'Do not show package suggestions.'),
-        new InputOption('no-update', null, InputOption::VALUE_NONE, 'Disables the automatic update of the dependencies.'),
-        new InputOption('no-scripts', null, InputOption::VALUE_NONE, 'Skips the execution of all scripts defined in composer.json file.'),
-        new InputOption('update-no-dev', null, InputOption::VALUE_NONE, 'Run the dependency update with the --no-dev option.'),
-        new InputOption('update-with-dependencies', null, InputOption::VALUE_NONE, 'Allows inherited dependencies to be updated, except those that are root requirements.'),
-        new InputOption('update-with-all-dependencies', null, InputOption::VALUE_NONE, 'Allows all inherited dependencies to be updated, including those that are root requirements.'),
-        new InputOption('ignore-platform-reqs', null, InputOption::VALUE_NONE, 'Ignore platform requirements (php & ext- packages).'),
-        new InputOption('prefer-stable', null, InputOption::VALUE_NONE, 'Prefer stable versions of dependencies.'),
-        new InputOption('prefer-lowest', null, InputOption::VALUE_NONE, 'Prefer lowest versions of dependencies.'),
-        new InputOption('sort-packages', null, InputOption::VALUE_NONE, 'Sorts packages when adding/updating a new dependency'),
-        new InputOption('optimize-autoloader', 'o', InputOption::VALUE_NONE, 'Optimize autoloader during autoloader dump'),
-        new InputOption('classmap-authoritative', 'a', InputOption::VALUE_NONE, 'Autoload classes from the classmap only. Implicitly enables `--optimize-autoloader`.'),
-        new InputOption('apcu-autoloader', null, InputOption::VALUE_NONE, 'Use APCu to cache found/not-found classes.'),
-        new InputOption('prefer-projects', NULL, InputOption::VALUE_NONE, 'When possible, requires drupal.org project name rather than module name.'),
-        new InputOption('dry-run', NULL, InputOption::VALUE_NONE, 'Display all the changes that would occur, without performing them.'),
         new InputOption('package-name', NULL, InputOption::VALUE_REQUIRED, 'The new package name, to replace drupal/drupal.', 'drupal/legacy-project-converted'),
+        new InputOption('dry-run', NULL, InputOption::VALUE_NONE, 'Display all the changes that would occur, without performing them.'),
+        new InputOption('no-update', null, InputOption::VALUE_NONE, 'Perform conversion but does not perform update.'),
+        new InputOption('sort-packages', null, InputOption::VALUE_NONE, 'Sorts packages when adding/updating a new dependency'),
       ))
       ->setHelp(
         <<<EOT
-There will be help here, eventually.
+This command will change your composer.json file. By default it will also
+try to peform a 'composer update' after it makes changes. It is highly
+advisable to work on a backup installation, or to use git or other VCS so
+you can undo the changes here. Never perform this operation on a production
+site.
 EOT
       )
     ;
@@ -154,6 +141,7 @@ EOT
       }
       $phpVersion = $this->repos->findPackage('php', '*')->getPrettyVersion();
       $requirements = $this->determineRequirements($input, $output, $packages, $phpVersion, $preferredStability, !$input->getOption('no-update'));
+
       foreach ($this->formatRequirements($requirements) as $package => $constraint) {
         $this->queue['addDependency'][] = [$package, $constraint];
       }
@@ -186,30 +174,26 @@ EOT
       return;
     }
 
-    $output->writeln('<info>Executing...</info>');
+    $io = $this->getIO();
+    $io->write('<info>Executing...</info>');
 
-    /*    if (function_exists('pcntl_async_signals')) {
+    if (function_exists('pcntl_async_signals')) {
       pcntl_async_signals(true);
       pcntl_signal(SIGINT, array($this, 'revertComposerFile'));
       pcntl_signal(SIGTERM, array($this, 'revertComposerFile'));
       pcntl_signal(SIGHUP, array($this, 'revertComposerFile'));
-      }
-     */
-    $this->file = Factory::getComposerFile();
-    $io = $this->getIO();
+    }
 
-    $this->newlyCreated = !file_exists($this->file);
+    // Check on our composer.json file to see if it will work with us.
+    $this->file = Factory::getComposerFile();
+
     if (!is_readable($this->file)) {
       $io->writeError('<error>' . $this->file . ' is not readable.</error>');
-
       return 1;
     }
 
     $this->json = new JsonFile($this->file);
     $this->composerBackup = file_get_contents($this->json->getPath());
-
-    $this->performQueue($this->json, $input, $output);
-    return;
 
     // check for writability by writing to the file as is_writable can not be trusted on network-mounts
     // see https://github.com/composer/composer/issues/8231 and https://bugs.php.net/bug.php?id=68926
@@ -219,69 +203,8 @@ EOT
       return 1;
     }
 
-    $composer = $this->getComposer(true, $input->getOption('no-plugins'));
-    $repos = $composer->getRepositoryManager()->getRepositories();
-
-
-    $root_package = $composer->getPackage();
-    if ($root_package->getName() != 'drupal/drupal') {
-      $this->getIO()->write('<error>This command only operates on drupal/drupal packages.</error>');
-      return 1;
-    }
-
-    $platformOverrides = $composer->getConfig()->get('platform') ?: array();
-    // initialize $this->repos as it is used by the parent InitCommand
-    $this->repos = new CompositeRepository(array_merge(
-        array(new PlatformRepository(array(), $platformOverrides)), $repos
-    ));
-
-    if ($composer->getPackage()->getPreferStable()) {
-      $preferredStability = 'stable';
-    }
-    else {
-      $preferredStability = $composer->getPackage()->getMinimumStability();
-    }
-
-    $phpVersion = $this->repos->findPackage('php', '*')->getPrettyVersion();
-
-    $packages = $this->reconciler->getUnreconciledPackages();
-
-    $requirements = $this->determineRequirements($input, $output, $packages, $phpVersion, $preferredStability, !$input->getOption('no-update'));
-
-    $requireKey = $input->getOption('dev') ? 'require-dev' : 'require';
-    $removeKey = $input->getOption('dev') ? 'require' : 'require-dev';
-    $requirements = $this->formatRequirements($requirements);
-
-    // validate requirements format
-    $versionParser = new VersionParser();
-    foreach ($requirements as $package => $constraint) {
-      if (strtolower($package) === $composer->getPackage()->getName()) {
-        $io->writeError(sprintf('<error>Root package \'%s\' cannot require itself in its composer.json</error>', $package));
-
-        return 1;
-      }
-      $versionParser->parseConstraints($constraint);
-    }
-
-    $sortPackages = $input->getOption('sort-packages') || $composer->getConfig()->get('sort-packages');
-
-    if (!$this->updateFileCleanly($this->json, $requirements, $requireKey, $removeKey, $sortPackages)) {
-      $composerDefinition = $this->json->read();
-      foreach ($requirements as $package => $version) {
-        $composerDefinition[$requireKey][$package] = $version;
-        unset($composerDefinition[$removeKey][$package]);
-      }
-      $this->json->write($composerDefinition);
-    }
-
-    $io->writeError('<info>' . $this->file . ' has been ' . ($this->newlyCreated ? 'created' : 'updated') . '</info>');
-
-    if ($input->getOption('no-update')) {
-      return 0;
-    }
-
     try {
-      return $this->doUpdate($input, $output, $io, $requirements);
+      return $this->performQueue($this->json, $input, $output);
     }
     catch (\Exception $e) {
       $this->revertComposerFile(false);

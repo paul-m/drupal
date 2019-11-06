@@ -150,6 +150,8 @@ class ExtensionReconciler {
     $finder->in($root)
       ->exclude(['core'])
       ->name('*.info.yml')
+      // Test paths can include unmarked test extensions, especially themes.
+      ->notPath('tests')
       ->filter(function ($info_file) {
         $info = Yaml::parseFile($info_file);
         if (isset($info['hidden']) && $info['hidden'] === TRUE) {
