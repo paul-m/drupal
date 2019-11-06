@@ -117,12 +117,6 @@ EOT
     }
     $this->queue['addDevDependency'][] = ['drupal/core-dev', '^8.8', TRUE];
 
-    // Stand-in for removing e.g. drupal-project stuff.
-    $this->queue['removeDependency'] = [
-      'phpspec/prophecy',
-      'symfony/debug',
-    ];
-
     // Deal with unreconciled extensions that we know we can require.
     if ($packages = $reconciler->getUnreconciledPackages()) {
       $composer = $this->getComposer(true, $input->getOption('no-plugins'));
