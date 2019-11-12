@@ -19,11 +19,24 @@ use Symfony\Component\Console\Input\ArrayInput;
 
 /**
  */
-class ConvertCommand extends InitCommand {
+class NewConvertCommand extends InitCommand {
 
   private $json;
   private $file;
+
+  /**
+   * Contents of the composer.json file before we modified it.
+   *
+   * @var string
+   */
   private $composerBackup;
+
+  /**
+   * Full path to the backup file we made of the original composer.json file.
+   *
+   * @var string
+   */
+  private $composerBackupPath;
   protected $userCanceled = FALSE;
 
   /**
@@ -85,44 +98,47 @@ EOT
     ;
   }
 
-  protected function initialize(InputInterface $input, OutputInterface $output) {
-    parent::initialize($input, $output);
-    $output->writeln('<info>Gathering information...</info>');
-    $reconciler = new ExtensionReconciler(
-      $this->getComposer()->getPackage(), $input->getOption('working-dir'
-    ));
+  protected function interact(InputInterface $input, OutputInterface $output) {
+    $style_io = new SymfonyStyle($input, $output);
+    $output->writeln('<info>The following actions will be performed:</info>');
+    $item_list = [
+      'Make a backup of your composer.json file.',
+      'Replace composer.json with one named drupal/converted-project.',
+      'Copy config for: Repositories, patches, config for drupal/core-* plugins.',
+      'Add requires for extensions on the file system.',
+      'Configure drupal/core-composer-scaffold based on drupal-composer/drupal-scaffold config.',
+    ];
+    $style_io->listing($item_list);
+    if (!$input->getOption('no-interaction')) {
+      $helper = $this->getHelper('question');
+      $this->userCanceled = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', false));
+    }
+  }
 
-    // Always perform the update unless the user tells us not to.
-    $this->queue['performUpdate'] = TRUE;
-    if ($input->getOption('no-update') || $input->getOption('dry-run')) {
-      unset($this->queue['performUpdate']);
+  protected function execute(InputInterface $input, OutputInterface $output) {
+    if ($this->userCanceled) {
+      return;
+    }
+    $working_dir = realpath($input->getOption('working-dir'));
+    $root_file_path = $working_dir . '/composer.json';
+    $root_file = new JsonFile(Factory::getComposerFile());
+
+    // Make a backup of the composer.json file.
+    $backup_root_file_path = $this->backupOriginal($root_file_path);
+
+    // Replace composer.json with one named drupal/converted-project.
+    if (!copy(__DIR__ . '/../templates/template.composer.json', $root_file_path)) {
+      throw new \Exception('Unable to copy to ' . $root_file->getPath());
     }
 
-    // New package name.
-    $this->queue['renamePackage'] = $input->getOption('package-name');
+    // @todo: Copy config for: Repositories, patches, config for drupal/core-*
+    //        plugins.
+    $this->copyRepositories($backup_root_file_path, $root_file_path);
 
-    // Start adding stuff we need in order to convert drupal/drupal to
-    // drupal/legacy-project.
-    $this->queue['removeDependency'] = [
-      'drupal/core',
-      'webflo/drupal-core-strict',
-      'webflo/drupal-core-require-dev',
-    ];
-
-    $legacy_dependencies = [
-      'composer/installers' => '^1.2',
-      'drupal/core-composer-scaffold' => '^8.9',
-      'drupal/core-project-message' => '^8.9',
-      'drupal/core-recommended' => '^8.9',
-      'drupal/core-vendor-hardening' => '^8.9',
-    ];
-    foreach ($legacy_dependencies as $package => $constraint) {
-      $this->queue['addDependency'][] = [$package, $constraint];
-    }
-    $this->queue['addDevDependency'][] = ['drupal/core-dev-pinned', '^8.9', TRUE];
-
-    // Deal with unreconciled extensions that we know we can require.
+    // Add requires for extensions on the file system.
+    $reconciler = new ExtensionReconciler($this->getComposer()->getPackage(), $working_dir);
     if ($packages = $reconciler->getUnreconciledPackages()) {
+      error_log(print_r($packages, true));
       $composer = $this->getComposer(true, $input->getOption('no-plugins'));
       $repos = $composer->getRepositoryManager()->getRepositories();
 
@@ -140,76 +156,23 @@ EOT
       $phpVersion = $this->repos->findPackage('php', '*')->getPrettyVersion();
       $requirements = $this->determineRequirements($input, $output, $packages, $phpVersion, $preferredStability, !$input->getOption('no-update'));
 
+      $contents = file_get_contents($root_file_path);
+      $manipulator = new JsonManipulator($contents);
+      $sort_packages = $input->getOption('sort-packages') || $this->getComposer()->getConfig()->get('sort-packages');
       foreach ($this->formatRequirements($requirements) as $package => $constraint) {
-        $this->queue['addDependency'][] = [$package, $constraint];
+        $manipulator->addLink('require', $package, $constraint, $sort_packages);
       }
+      file_put_contents($root_file_path, $manipulator->getContents());
     }
 
-    if ($exotic = $reconciler->getExoticPackages()) {
-      $this->queue['nextSteps'][] = 'Deal with these extensions: ' . implode(', ', $exotic);
-    }
-  }
+    // @todo: Alert the user that they have unreconciled extensions.
+    /*
+      if ($exotic = $reconciler->getExoticPackages()) {
+      }
+     */
 
-  protected function interact(InputInterface $input, OutputInterface $output) {
-    if (!empty($this->queue) && !$input->getOption('no-interaction')) {
-      // @todo Wall of text type warning here with something like press space
-      //   to continue.
-      $output->writeln('<info>The following actions will be performed:</info>');
-      $this->describeQueue($input, $output);
-      $helper = $this->getHelper('question');
-      $this->userCanceled = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', false));
-    }
-  }
-
-  protected function execute(InputInterface $input, OutputInterface $output) {
-    if ($this->userCanceled) {
-      return;
-    }
-
-    // If it's a dry run and the user shouldn't interact, then we should
-    // describe the queue and then stop.
-    if ($input->getOption('dry-run') && $input->getOption('no-interaction')) {
-      $this->describeQueue($input, $output);
-      return;
-    }
-
-    $io = $this->getIO();
-    $io->write('<info>Executing...</info>');
-
-    if (function_exists('pcntl_async_signals')) {
-      pcntl_async_signals(true);
-      pcntl_signal(SIGINT, array($this, 'revertComposerFile'));
-      pcntl_signal(SIGTERM, array($this, 'revertComposerFile'));
-      pcntl_signal(SIGHUP, array($this, 'revertComposerFile'));
-    }
-
-    // Check on our composer.json file to see if it will work with us.
-    $this->file = Factory::getComposerFile();
-
-    if (!is_readable($this->file)) {
-      $io->writeError('<error>' . $this->file . ' is not readable.</error>');
-      return 1;
-    }
-
-    $this->json = new JsonFile($this->file);
-    $this->composerBackup = file_get_contents($this->json->getPath());
-
-    // check for writability by writing to the file as is_writable can not be
-    // trusted on network-mounts see
-    // https://github.com/composer/composer/issues/8231 and
-    // https://bugs.php.net/bug.php?id=68926
-    if (!is_writable($this->file) && !Silencer::call('file_put_contents', $this->file, $this->composerBackup)) {
-      $io->writeError('<error>' . $this->file . ' is not writable.</error>');
-      return 1;
-    }
-
-    try {
-      return $this->performQueue($this->json, $input, $output);
-    }
-    catch (\Exception $e) {
-      $this->revertComposerFile(false);
-      throw $e;
-    }
+    // @todo: Configure drupal/core-composer-scaffold based on
+    //        drupal-composer/drupal-scaffold config.',
   }
 
   public function revertComposerFile($hardExit = true) {
@@ -221,6 +184,19 @@ EOT
     if ($hardExit) {
       exit(1);
     }
+  }
+
+  /**
+   *
+   * @param string $root_file_path
+   * @return string
+   */
+  protected function backupOriginal($root_file_path) {
+    $backup_path = dirname($root_file_path) . '/backup.composer.json';
+    if (!copy($root_file_path, $backup_path)) {
+      throw new \Excecption('Unable to back up to ' . $backup_path);
+    }
+    return $backup_path;
   }
 
   /**
@@ -384,6 +360,41 @@ EOT
         $this->getIO()->writeError('Could not install dependencies. Run `composer install` to see more information.');
       }
     }
+  }
+
+  /**
+   * Copy config for: Repositories, patches, config for drupal/core-* plugins.
+   */
+  protected function copyRepositories($backup_root_file_path, $root_file_path) {
+    // Ensure that new root has Drupal Composer facade repo.
+    $add_these_repositories = [
+      'drupal_composer_facade' => [
+        'type' => 'composer',
+        'url' => 'https://packages.drupal.org/8'
+      ],
+      'dunk_me' => [
+        'type' => 'composer',
+        'url' => 'https://packages.drup__al.org/8'
+      ],
+    ];
+    /*    $file = new JsonFile($backup_root_file_path);
+      $json = $file->read();
+      $repositories = $json['repositories'] ?? [];
+      foreach ($repositories as $repo_name => $repo) {
+      if ($repo['url'] == 'https://packages.drupal.org/8') {
+      unset($add_these_repositories['drupal_composer_facade']);
+      }
+      $add_these_repositories[$repo_name] = $repo;
+      } */
+
+    $contents = file_get_contents($root_file_path);
+    $manipulator = new JsonManipulator($contents);
+    foreach ($add_these_repositories as $repo_name => $repo) {
+      if (!$manipulator->addRepository($repo_name, $repo)) {
+        error_log('it was false.');
+      }
+    }
+    file_put_contents($root_file_path, $manipulator->getContents());
   }
 
 }

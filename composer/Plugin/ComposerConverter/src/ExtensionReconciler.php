@@ -38,7 +38,9 @@ class ExtensionReconciler {
   /**
    * Get packages for extensions in filesystem, but not in composer.json.
    *
-   * This is the list of extensions that have a d.o project.
+   * @return string[]
+   *   Array of extension package names, such as drupal/ajax_example, keyed by
+   *   the extension name, such as ajax_example.
    */
   public function getUnreconciledPackages() {
     if ($this->needThesePackages === NULL) {
