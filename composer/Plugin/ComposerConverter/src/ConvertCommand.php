@@ -303,10 +303,6 @@ EOT
       if (isset($this->queue[$operation])) {
         $io->write(' * ' . $description);
         switch ($operation) {
-          case 'backupProject':
-            $this->opBackupProject($json);
-            break;
-
           case 'renamePackage':
             $this->opRenamePackage($json, $this->queue[$operation]);
             break;
@@ -314,13 +310,13 @@ EOT
           case 'addDependency':
           case 'addDevDependency':
             foreach ($this->queue[$operation] as $add) {
-              $this->opAddDependency($json, $add[0], $add[1], isset($add[2]), $sort_packages);
+              $this->opAddDependency($this->json, $add[0], $add[1], isset($add[2]), $sort_packages);
             }
             break;
 
           case 'removeDependency':
             foreach ($this->queue[$operation] as $remove) {
-              $this->opRemoveDependency($json, $remove);
+              $this->opRemoveDependency($this->json, $remove);
             }
             break;
 
@@ -334,11 +330,6 @@ EOT
         }
       }
     }
-  }
-
-  protected function opBackupProject(JsonFile $json) {
-    // Generate unique file name.
-    // Copy original to new.
   }
 
   protected function opRenamePackage(JsonFile $json, $new_name) {
