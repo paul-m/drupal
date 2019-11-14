@@ -64,7 +64,6 @@ EOT
    */
   protected function initialize(InputInterface $input, OutputInterface $output) {
     parent::initialize($input, $output);
-    $this->rootComposerJsonPath = realpath($input->getOption('working-dir')) . '/composer.json';
   }
 
   /**
@@ -94,17 +93,29 @@ EOT
     if ($this->userCanceled) {
       return;
     }
-    $working_dir = realpath($input->getOption('working-dir'));
     $io = $this->getIO();
+
+    $working_dir = realpath($input->getOption('working-dir'));
+    $this->rootComposerJsonPath = $working_dir . '/composer.json';
+
+    if (!file_exists($this->rootComposerJsonPath)) {
+      $io->write('<error>Unable to convert file because it does not exist: ' . $this->rootComposerJsonPath . '</error>');
+      $io->write('Change to the root directory of your project, or use the --working-dir option.');
+      return 1;
+    }
 
     // Make a backup of the composer.json file.
     $this->composerBackupPath = $this->createBackup($this->rootComposerJsonPath);
     $this->composerBackupContents = file_get_contents($this->composerBackupPath);
 
     // Replace composer.json with our template.
-    if (!copy(__DIR__ . '/../templates/template.composer.json', $this->rootComposerJsonPath)) {
-      $io->write('<error>Unable to copy to ' . $this->rootComposerJsonPath . '</error>');
-      $this->revertComposerFile(TRUE);
+    $core_minor = '^8.9';
+    $template_contents = file_get_contents(__DIR__ . '/../templates/template.composer.json');
+    $template_contents = str_replace('%core_minor%', $core_minor, $template_contents);
+    if (file_put_contents($this->rootComposerJsonPath, $template_contents) === FALSE) {
+      $io->write('<error>Unable to replace composer.json file.</error>');
+      $this->revertComposerFile();
+      return 1;
     }
 
     // @todo: Copy config for: Repositories, patches, config for drupal/core-*
@@ -127,7 +138,7 @@ EOT
     }
 
     // Add requires for extensions on the file system.
-    $reconciler = new ExtensionReconciler($this->getComposer()->getPackage(), $working_dir);
+    $reconciler = new ExtensionReconciler($this->composerBackupPath, $working_dir);
     $add_packages = array_merge($add_packages, $reconciler->getUnreconciledPackages());
 
     // Add all the packages we need.
@@ -151,9 +162,7 @@ EOT
       $requirements = $this->determineRequirements($input, $output, $add_packages, $phpVersion, $prefer_stable, !$input->getOption('no-update'));
 
       // Figure out if we should sort packages.
-      $json_contents = (new JsonFile($this->rootComposerJsonPath))->read();
-      $sort_packages = $json_contents['config']['sort-packages'] ?? FALSE;
-      $sort_packages = $input->getOption('sort-packages') || $sort_packages;
+      $sort_packages = $input->getOption('sort-packages') || (new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)))->getSortPackages();
 
       // Add our new dependencies.
       $contents = file_get_contents($this->rootComposerJsonPath);
@@ -208,8 +217,7 @@ EOT
       'patches-ignore',
       'enable-patching',
     ];
-    $backup_json = (new JsonFile($this->composerBackupPath))->read();
-    $extra_json = $backup_json['extra'] ?? [];
+    $extra_json = (new JsonFileUtility(new JsonFile($this->composerBackupPath)))->getExtra();
 
     foreach (array_keys($extra_json) as $extra) {
       if (!in_array($extra, $extras_to_copy)) {
@@ -236,8 +244,7 @@ EOT
       ],
     ];
 
-    $backup_json = (new JsonFile($this->composerBackupPath))->read();
-    $backup_repositories_json = $backup_json['repositories'] ?? [];
+    $backup_repositories_json = (new JsonFileUtility(new JsonFile($this->composerBackupPath)))->getRepositories();
 
     $manipulator = new JsonManipulator(file_get_contents($root_file_path));
     $manipulator->addMainKey('repositories', array_merge($backup_repositories_json, $required_repositories));
@@ -251,8 +258,7 @@ EOT
       'patches-ignore',
       'enable-patching',
     ];
-    $json_contents = (new JsonFile($this->composerBackupPath))->read();
-    $extra_json_keys = array_keys($json_contents['extra'] ?? []);
+    $extra_json_keys = array_keys((new JsonFileUtility(new JsonFile($this->composerBackupPath)))->getExtra());
     foreach ($patch_config_keys as $patch_config) {
       if (in_array($patch_config, $extra_json_keys)) {
         return TRUE;

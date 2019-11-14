@@ -2,15 +2,20 @@
 
 namespace Drupal\Composer\Plugin\ComposerConverter;
 
-use Composer\Package\RootPackageInterface;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
+use Composer\Json\JsonFile;
 
 class ExtensionReconciler {
 
   protected $exoticSetupExtensions = NULL;
   protected $needThesePackages = NULL;
-  protected $rootPackage;
+
+  /**
+   *
+   * @var \Composer\Json\JsonFile
+   */
+  protected $composerJsonFile;
   protected $workingDir;
 
   /**
@@ -25,13 +30,13 @@ class ExtensionReconciler {
   /**
    * Construct a reconciler.
    *
-   * @param RootPackageInterface $root_package
-   *   The package we're inspecting.
+   * @param string $composer_json_path
+   *   Full path to a composer.json file we'll reconcile against.
    * @param string $working_dir
    *   Relative working directory as specified from Composer.
    */
-  public function __construct(RootPackageInterface $root_package, $working_dir) {
-    $this->rootPackage = $root_package;
+  public function __construct($composer_json_path, $working_dir) {
+    $this->composerJsonFile = new JsonFile($composer_json_path);
     $this->workingDir = $working_dir;
   }
 
@@ -65,14 +70,15 @@ class ExtensionReconciler {
    * Process our package and filesystem into reconcilable information.
    */
   protected function processNeededPackages() {
+    // Find all the extensions in the file system, sorted by D.O project name.
     $this->projects = [];
     $extension_objects = [];
     /* @var $file \SplFileInfo */
     foreach ($this->findInfoFiles(realpath($this->workingDir)) as $file) {
       $info = Yaml::parseFile($file->getPathname());
       $project = isset($info['project']) ? $info['project'] : '__unknown_project';
-      $extension = basename($file->getPathname(), '.info.yml');
-      $this->projects[$project][$extension] = $extension;
+      $extension_name = basename($file->getPathname(), '.info.yml');
+      $this->projects[$project][$extension_name] = $extension_name;
       $e = new Extension();
       $e->name = basename($file->getPathname(), '.info.yml');
       $e->pathname = $file->getPathname();
@@ -81,23 +87,25 @@ class ExtensionReconciler {
     }
 
     // Reconcile extensions against require and require-dev.
-    $requires = array_merge($this->rootPackage->getRequires(), $this->rootPackage->getDevRequires());
+    $require = (new JsonFileUtility($this->composerJsonFile))->getCombinedRequire();
+
     // Concern ourselves with drupal/ namespaced packages.
-    $requires = array_filter($requires, function ($item) {
+    $require = array_filter($require, function ($item) {
       return strpos($item, 'drupal/') === 0;
     }, ARRAY_FILTER_USE_KEY);
-    // Make a list of module names from our package names.
-    $requires_ext_or_proj_names = [];
-    foreach (array_keys($requires) as $package) {
+
+    // Make a list of extension/project names from our package names.
+    $required_ext_or_proj_names = [];
+    foreach (array_keys($require) as $package) {
       $boom_package = explode('/', $package);
       $extension_or_project_name = $boom_package[1];
-      $requires_ext_or_proj_names[$extension_or_project_name] = $extension_or_project_name;
+      $required_ext_or_proj_names[$extension_or_project_name] = $extension_or_project_name;
       // If our extension is already required and belongs to a project, then
       // we should include that project in the list so that we account for other
       // extensions in the same project.
       if (isset($extension_objects[$extension_or_project_name]) || !empty($extension_objects[$extension_or_project_name]->project)) {
         $p = $extension_objects[$extension_or_project_name]->project;
-        $requires_ext_or_proj_names[$p] = $p;
+        $required_ext_or_proj_names[$p] = $p;
       }
     }
 
@@ -119,13 +127,13 @@ class ExtensionReconciler {
       // The user has already required the project in their composer.json by
       // project name. This also covers extensions where the extension name is
       // the same as the d.o project name.
-      if (isset($requires_ext_or_proj_names[$project])) {
+      if (isset($required_ext_or_proj_names[$project])) {
         continue;
       }
       // Loop through all discovered extensions for this project to find out if
       // they're already in the composer.json.
       foreach ($extensions as $extension) {
-        if (!in_array($extension, $requires_ext_or_proj_names)) {
+        if (!in_array($extension, $required_ext_or_proj_names)) {
           $this->needThesePackages[$extension] = $extension;
         }
       }
