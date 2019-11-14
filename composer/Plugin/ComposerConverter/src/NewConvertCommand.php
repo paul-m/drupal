@@ -21,15 +21,12 @@ use Symfony\Component\Console\Input\ArrayInput;
  */
 class NewConvertCommand extends InitCommand {
 
-  private $json;
-  private $file;
-
   /**
    * Contents of the composer.json file before we modified it.
    *
    * @var string
    */
-  private $composerBackup;
+  private $composerBackupContents;
 
   /**
    * Full path to the backup file we made of the original composer.json file.
@@ -37,44 +34,8 @@ class NewConvertCommand extends InitCommand {
    * @var string
    */
   private $composerBackupPath;
+  private $rootComposerJsonPath;
   protected $userCanceled = FALSE;
-
-  /**
-   * Many operations to perform, keyed by operation.
-   *
-   * Current allowable operations:
-   * - backupProject
-   * - renamePackage
-   *   - New package name.
-   * - addDependency
-   * - addDevDependency
-   *   - Array of arrays: ['package/name', 'constraint']
-   * - removeDependency
-   *   - Array of strings: 'package/name'
-   * - removeExtension
-   *   - Array of extension info file paths.
-   * - performUpdate
-   *   - Any truthy value.
-   *
-   * @var string[][]
-   */
-  protected $queue;
-
-  /**
-   * The order to perform queue operations.
-   *
-   * @var string[]
-   */
-  protected $queueOrder = [
-    'Backup the existing project' => 'backupProject',
-    'Add dependencies' => 'addDependency',
-    'Add development dependencies' => 'addDevDependency',
-    'Remove dependencies' => 'removeDependency',
-    'Remove extensions from the file system' => 'removeExtension',
-    'Rename the package' => 'renamePackage',
-    'Perform Composer update' => 'performUpdate',
-    'Next steps' => 'nextSteps',
-  ];
 
   protected function configure() {
     $this
@@ -96,6 +57,11 @@ site.
 EOT
       )
     ;
+  }
+
+  protected function initialize(InputInterface $input, OutputInterface $output) {
+    parent::initialize($input, $output);
+    $this->rootComposerJsonPath = realpath($input->getOption('working-dir')) . '/composer.json';
   }
 
   protected function interact(InputInterface $input, OutputInterface $output) {
@@ -120,49 +86,69 @@ EOT
       return;
     }
     $working_dir = realpath($input->getOption('working-dir'));
-    $root_file_path = $working_dir . '/composer.json';
-    $root_file = new JsonFile(Factory::getComposerFile());
+    $io = $this->getIO();
 
     // Make a backup of the composer.json file.
-    $backup_root_file_path = $this->backupOriginal($root_file_path);
+    $this->composerBackupPath = $this->createBackup($this->rootComposerJsonPath);
+    $this->composerBackupContents = file_get_contents($this->composerBackupPath);
 
-    // Replace composer.json with one named drupal/converted-project.
-    if (!copy(__DIR__ . '/../templates/template.composer.json', $root_file_path)) {
-      throw new \Exception('Unable to copy to ' . $root_file->getPath());
+    // Replace composer.json with our template.
+    if (!copy(__DIR__ . '/../templates/template.composer.json', $this->rootComposerJsonPath)) {
+      $io->write('<error>Unable to copy to ' . $this->rootComposerJsonPath . '</error>');
+      $this->revertComposerFile(TRUE);
     }
 
     // @todo: Copy config for: Repositories, patches, config for drupal/core-*
     //        plugins.
-    $this->copyRepositories($backup_root_file_path, $root_file_path);
+    $this->copyRepositories($this->rootComposerJsonPath);
+    $this->copyExtra($this->rootComposerJsonPath);
+
+    // Package names of packages we should add, such as cweagans/composer-patches.
+    // For normal packages, the key is the package name. For Drupal extensions, the
+    // key is the extension machine name, and the value is the package name.
+    $add_packages = [];
+
+    // If extra has patch info, require cweagans/composer-patches.
+    if ($this->hasPatchesConfig()) {
+      $add_packages['cweagans/composer-patches'] = 'cweagans/composer-patches';
+    }
 
     // Add requires for extensions on the file system.
     $reconciler = new ExtensionReconciler($this->getComposer()->getPackage(), $working_dir);
-    if ($packages = $reconciler->getUnreconciledPackages()) {
-      error_log(print_r($packages, true));
+    $add_packages = array_merge($add_packages, $reconciler->getUnreconciledPackages());
+
+    // Add all the packages we need.
+    if ($add_packages) {
       $composer = $this->getComposer(true, $input->getOption('no-plugins'));
+      // @todo Does this use my newly defined repos or the stale ones?
       $repos = $composer->getRepositoryManager()->getRepositories();
 
-      $platformOverrides = $composer->getConfig()->get('platform') ?: array();
+      $platform_overrides = $composer->getConfig()->get('platform') ?: array();
       // initialize $this->repos as it is used by the parent InitCommand
       $this->repos = new CompositeRepository(array_merge(
-          array(new PlatformRepository(array(), $platformOverrides)), $repos
+          array(new PlatformRepository(array(), $platform_overrides)), $repos
       ));
       if ($composer->getPackage()->getPreferStable()) {
-        $preferredStability = 'stable';
+        $prefer_stable = 'stable';
       }
       else {
-        $preferredStability = $composer->getPackage()->getMinimumStability();
+        $prefer_stable = $composer->getPackage()->getMinimumStability();
       }
       $phpVersion = $this->repos->findPackage('php', '*')->getPrettyVersion();
-      $requirements = $this->determineRequirements($input, $output, $packages, $phpVersion, $preferredStability, !$input->getOption('no-update'));
+      $requirements = $this->determineRequirements($input, $output, $add_packages, $phpVersion, $prefer_stable, !$input->getOption('no-update'));
 
-      $contents = file_get_contents($root_file_path);
+      // Figure out if we should sort packages.
+      $json_contents = (new JsonFile($this->rootComposerJsonPath))->read();
+      $sort_packages = $json_contents['config']['sort-packages'] ?? FALSE;
+      $sort_packages = $input->getOption('sort-packages') || $sort_packages;
+
+      // Add our new dependencies.
+      $contents = file_get_contents($this->rootComposerJsonPath);
       $manipulator = new JsonManipulator($contents);
-      $sort_packages = $input->getOption('sort-packages') || $this->getComposer()->getConfig()->get('sort-packages');
       foreach ($this->formatRequirements($requirements) as $package => $constraint) {
         $manipulator->addLink('require', $package, $constraint, $sort_packages);
       }
-      file_put_contents($root_file_path, $manipulator->getContents());
+      file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
     }
 
     // @todo: Alert the user that they have unreconciled extensions.
@@ -178,8 +164,8 @@ EOT
   public function revertComposerFile($hardExit = true) {
     $io = $this->getIO();
 
-    $io->writeError("\n" . '<error>Conversion failed, reverting ' . $this->file . ' to its original content.</error>');
-    file_put_contents($this->json->getPath(), $this->composerBackup);
+    $io->writeError("\n" . '<error>Conversion failed, reverting ' . $this->rootComposerJsonPath . ' to its original contents.</error>');
+    file_put_contents($this->rootComposerJsonPath, $this->composerBackupContents);
 
     if ($hardExit) {
       exit(1);
@@ -191,7 +177,7 @@ EOT
    * @param string $root_file_path
    * @return string
    */
-  protected function backupOriginal($root_file_path) {
+  protected function createBackup($root_file_path) {
     $backup_path = dirname($root_file_path) . '/backup.composer.json';
     if (!copy($root_file_path, $backup_path)) {
       throw new \Excecption('Unable to back up to ' . $backup_path);
@@ -199,202 +185,68 @@ EOT
     return $backup_path;
   }
 
-  /**
-   * - renamePackage
-   *   - New package name.
-   * - addDependency
-   *   - Array of arrays: ['package/name', 'constraint']
-   * - removeDependency
-   *   - Array of strings: 'package/name'
-   * - removeExtension
-   *   - Array of extension info file paths.
-   * - performUpdate
-   *   - Any truthy value.
-   *
-   * @param InputInterface $input
-   * @param OutputInterface $output
-   */
-  protected function describeQueue(InputInterface $input, OutputInterface $output) {
-    $style = new SymfonyStyle($input, $output);
-    $io = $this->getIO();
-    foreach ($this->queueOrder as $description => $operation) {
-      if (isset($this->queue[$operation])) {
-        $io->write($description);
-        switch ($operation) {
-          case 'renamePackage':
-            $style->listing([$this->queue[$operation]]);
-            break;
+  protected function copyExtra($root_file_path) {
+    $extras_to_copy = [
+      'drupal-core-project-message',
+      'drupal-scaffold',
+      'installer-paths',
+      'merge-plugin',
+      'patches',
+      'patches-file',
+      'patches-ignore',
+      'enable-patching',
+    ];
+    $backup_json = (new JsonFile($this->composerBackupPath))->read();
+    $extra_json = $backup_json['extra'] ?? [];
 
-          case 'addDependency':
-            $style->listing(
-              array_map(function ($item) {
-                $message = $item[0] . ':' . $item[1];
-                if (isset($item[2])) {
-                  $message .= ' (dev)';
-                }
-                return $message;
-              }, $this->queue[$operation])
-            );
-            break;
-
-          case 'addDevDependency':
-            $style->listing(
-              array_map(function ($item) {
-                $message = $item[0] . ':' . $item[1];
-                if (isset($item[2])) {
-                  $message .= ' (dev)';
-                }
-                return $message;
-              }, $this->queue[$operation])
-            );
-            break;
-
-          case 'removeDependency':
-            $style->listing($this->queue[$operation]);
-            break;
-
-          /*          case 'removeExtension':
-            $style->listing(
-            );
-            break; */
-
-          case 'performUpdate':
-            $style->listing(['Will perform update.']);
-            break;
-
-          case 'nextSteps':
-            $style->listing($this->queue[$operation]);
-            break;
-        }
+    foreach (array_keys($extra_json) as $extra) {
+      if (!in_array($extra, $extras_to_copy)) {
+        unset($extra_json[$extra]);
       }
     }
-  }
 
-  protected function performQueue(JsonFile $json, InputInterface $input, OutputInterface $output) {
-    $style = new SymfonyStyle($input, $output);
-    $io = $this->getIO();
-    $sort_packages = $input->getOption('sort-packages') || $this->getComposer()->getConfig()->get('sort-packages');
-
-    foreach ($this->queueOrder as $description => $operation) {
-      if (isset($this->queue[$operation])) {
-        $io->write(' * ' . $description);
-        switch ($operation) {
-          case 'backupProject':
-            $this->opBackupProject($json);
-            break;
-
-          case 'renamePackage':
-            $this->opRenamePackage($json, $this->queue[$operation]);
-            break;
-
-          case 'addDependency':
-          case 'addDevDependency':
-            foreach ($this->queue[$operation] as $add) {
-              $this->opAddDependency($json, $add[0], $add[1], isset($add[2]), $sort_packages);
-            }
-            break;
-
-          case 'removeDependency':
-            foreach ($this->queue[$operation] as $remove) {
-              $this->opRemoveDependency($json, $remove);
-            }
-            break;
-
-          case 'performUpdate':
-            $this->opUpdate($output);
-            break;
-
-          case 'nextSteps':
-            $style->listing($this->queue[$operation]);
-            break;
-        }
-      }
+    $manipulator = new JsonManipulator(file_get_contents($root_file_path));
+    foreach ($extra_json as $name => $value) {
+      $manipulator->addSubNode('extra', $name, $value);
     }
-  }
-
-  protected function opBackupProject(JsonFile $json) {
-    // Generate unique file name.
-    // Copy original to new.
-  }
-
-  protected function opRenamePackage(JsonFile $json, $new_name) {
-    $contents = file_get_contents($json->getPath());
-    $manipulator = new JsonManipulator($contents);
-
-    $manipulator->removeMainKey('name');
-    $manipulator->addMainKey('name', $new_name);
-
-    file_put_contents($json->getPath(), $manipulator->getContents());
-  }
-
-  protected function opRemoveDependency(JsonFile $json, $dependency) {
-    $contents = file_get_contents($json->getPath());
-    $manipulator = new JsonManipulator($contents);
-
-    foreach (['require', 'require-dev'] as $require_key) {
-      $manipulator->removeSubNode($require_key, $dependency);
-    }
-
-    file_put_contents($json->getPath(), $manipulator->getContents());
-  }
-
-  protected function opAddDependency(JsonFile $json, $dependency, $constraint, $is_dev, $sort_packages) {
-    $require_key = 'require';
-    if ($is_dev) {
-      $require_key = 'require-dev';
-    }
-    $contents = file_get_contents($json->getPath());
-    $manipulator = new JsonManipulator($contents);
-
-    $manipulator->addLink($require_key, $dependency, $constraint, $sort_packages);
-
-    file_put_contents($json->getPath(), $manipulator->getContents());
-  }
-
-  protected function opUpdate(OutputInterface $output) { {
-      try {
-        $update_command = $this->getApplication()->find('update');
-        $update_command->run(new ArrayInput(array()), $output);
-      }
-      catch (\Exception $e) {
-        $this->getIO()->writeError('Could not install dependencies. Run `composer install` to see more information.');
-      }
-    }
+    file_put_contents($root_file_path, $manipulator->getContents());
   }
 
   /**
    * Copy config for: Repositories, patches, config for drupal/core-* plugins.
    */
-  protected function copyRepositories($backup_root_file_path, $root_file_path) {
+  protected function copyRepositories($root_file_path) {
     // Ensure that new root has Drupal Composer facade repo.
-    $add_these_repositories = [
+    $required_repositories = [
       'drupal_composer_facade' => [
         'type' => 'composer',
         'url' => 'https://packages.drupal.org/8'
       ],
-      'dunk_me' => [
-        'type' => 'composer',
-        'url' => 'https://packages.drup__al.org/8'
-      ],
     ];
-    /*    $file = new JsonFile($backup_root_file_path);
-      $json = $file->read();
-      $repositories = $json['repositories'] ?? [];
-      foreach ($repositories as $repo_name => $repo) {
-      if ($repo['url'] == 'https://packages.drupal.org/8') {
-      unset($add_these_repositories['drupal_composer_facade']);
-      }
-      $add_these_repositories[$repo_name] = $repo;
-      } */
 
-    $contents = file_get_contents($root_file_path);
-    $manipulator = new JsonManipulator($contents);
-    foreach ($add_these_repositories as $repo_name => $repo) {
-      if (!$manipulator->addRepository($repo_name, $repo)) {
-        error_log('it was false.');
+    $backup_json = (new JsonFile($this->composerBackupPath))->read();
+    $backup_repositories_json = $backup_json['repositories'] ?? [];
+
+    $manipulator = new JsonManipulator(file_get_contents($root_file_path));
+    $manipulator->addMainKey('repositories', array_merge($backup_repositories_json, $required_repositories));
+    file_put_contents($root_file_path, $manipulator->getContents());
+  }
+
+  protected function hasPatchesConfig() {
+    $patch_config_keys = [
+      'patches',
+      'patches-file',
+      'patches-ignore',
+      'enable-patching',
+    ];
+    $json_contents = (new JsonFile($this->composerBackupPath))->read();
+    $extra_json_keys = array_keys($json_contents['extra'] ?? []);
+    foreach ($patch_config_keys as $patch_config) {
+      if (in_array($patch_config, $extra_json_keys)) {
+        return TRUE;
       }
     }
-    file_put_contents($root_file_path, $manipulator->getContents());
+    return FALSE;
   }
 
 }

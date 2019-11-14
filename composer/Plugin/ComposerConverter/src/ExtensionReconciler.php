@@ -150,7 +150,7 @@ class ExtensionReconciler {
     // Discover extensions.
     $finder = new Finder();
     $finder->in($root)
-      ->exclude(['core'])
+      ->exclude(['core', 'vendor'])
       ->name('*.info.yml')
       // Test paths can include unmarked test extensions, especially themes.
       ->notPath('tests')
