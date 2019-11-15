@@ -6,6 +6,9 @@ use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
 use Composer\Json\JsonFile;
 
+/**
+ * @todo Add a list of reconciled extensions and their constraints.
+ */
 class ExtensionReconciler {
 
   protected $exoticSetupExtensions = NULL;
@@ -47,9 +50,9 @@ class ExtensionReconciler {
    *   Array of extension package names, such as drupal/ajax_example, keyed by
    *   the extension name, such as ajax_example.
    */
-  public function getUnreconciledPackages() {
+  public function getUnreconciledPackages($prefer_projects = FALSE) {
     if ($this->needThesePackages === NULL) {
-      $this->processNeededPackages();
+      $this->processNeededPackages($prefer_projects);
     }
     return $this->needThesePackages;
   }
@@ -69,7 +72,7 @@ class ExtensionReconciler {
   /**
    * Process our package and filesystem into reconcilable information.
    */
-  protected function processNeededPackages() {
+  protected function processNeededPackages($prefer_projects = FALSE) {
     // Find all the extensions in the file system, sorted by D.O project name.
     $this->projects = [];
     $extension_objects = [];
@@ -134,7 +137,12 @@ class ExtensionReconciler {
       // they're already in the composer.json.
       foreach ($extensions as $extension) {
         if (!in_array($extension, $required_ext_or_proj_names)) {
-          $this->needThesePackages[$extension] = $extension;
+          if ($prefer_projects) {
+            $this->needThesePackages[$project] = $project;
+          }
+          else {
+            $this->needThesePackages[$extension] = $extension;
+          }
         }
       }
     }

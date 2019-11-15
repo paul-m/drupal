@@ -13,6 +13,7 @@ use Composer\Command\InitCommand;
 use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
+use Composer\Semver\Semver;
 
 /**
  */
@@ -46,6 +47,7 @@ class ConvertCommand extends InitCommand {
         new InputOption('dry-run', NULL, InputOption::VALUE_NONE, 'Display all the changes that would occur, without performing them.'),
         new InputOption('no-update', null, InputOption::VALUE_NONE, 'Perform conversion but does not perform update.'),
         new InputOption('sort-packages', null, InputOption::VALUE_NONE, 'Sorts packages when adding/updating a new dependency'),
+        new InputOption('prefer-projects', NULL, InputOption::VALUE_NONE, 'When possible, use d.o project name instead of extension name.'),
       ))
       ->setHelp(
         <<<EOT
@@ -109,7 +111,8 @@ EOT
     $this->composerBackupContents = file_get_contents($this->composerBackupPath);
 
     // Replace composer.json with our template.
-    $core_minor = '^8.9';
+    $drupal_class_file = $this->locateDrupalClassFile($working_dir);
+    $core_minor = $this->determineDrupalCoreVersion($drupal_class_file);
     $template_contents = file_get_contents(__DIR__ . '/../templates/template.composer.json');
     $template_contents = str_replace('%core_minor%', $core_minor, $template_contents);
     if (file_put_contents($this->rootComposerJsonPath, $template_contents) === FALSE) {
@@ -118,8 +121,7 @@ EOT
       return 1;
     }
 
-    // @todo: Copy config for: Repositories, patches, config for drupal/core-*
-    //        plugins.
+    // Copy config for: Repositories, patches, config for drupal/core-* plugins.
     $this->copyRepositories($this->rootComposerJsonPath);
     $this->copyExtra($this->rootComposerJsonPath);
 
@@ -139,7 +141,7 @@ EOT
 
     // Add requires for extensions on the file system.
     $reconciler = new ExtensionReconciler($this->composerBackupPath, $working_dir);
-    $add_packages = array_merge($add_packages, $reconciler->getUnreconciledPackages());
+    $add_packages = array_merge($add_packages, $reconciler->getUnreconciledPackages($input->getOption('prefer-projects')));
 
     // Add all the packages we need.
     if ($add_packages) {
@@ -263,6 +265,52 @@ EOT
       if (in_array($patch_config, $extra_json_keys)) {
         return TRUE;
       }
+    }
+    return FALSE;
+  }
+
+  /**
+   * @return mixed|string
+   * @throws \Exception
+   */
+  protected function determineDrupalCoreVersion($drupal_class_file) {
+    // Default to a reasonable previous minor version. When the user updates, they'll
+    // get the newest. This is not optimal, but might be required if, for instance,
+    // they have never installed this project and don't have a \Drupal class to load.
+    $drupal_core_constraint = '^8.7';
+
+    if ($drupal_class_file) {
+      $core_version = DrupalInspector::determineDrupalCoreVersionFromDrupalPhp(file_get_contents($drupal_class_file));
+      if (!Semver::satisfiedBy([$core_version], "*")) {
+        throw new \Exception("Drupal core version $core_version is invalid.");
+      }
+      // Use major and minor. We know major and minor are present because this
+      // version comes from \Drupal::VERSION.
+      if (preg_match('/^(\d+).(\d+)./', $core_version, $matches)) {
+        $drupal_core_constraint = '^' . $matches[1] . '.' . $matches[2];
+      }
+    }
+
+    return $drupal_core_constraint;
+  }
+
+  protected function locateDrupalClassFile($working_dir) {
+    // Basic drupal/drupal or legacy file layout.
+    $drupal_class = $working_dir . '/core/lib/Drupal.php';
+    if (file_exists($drupal_class)) {
+      return $drupal_class;
+    }
+    // Both drupal-composer/drupal-scaffold and drupal/core-composer-scaffold default
+    // to a docroot of 'web'. If we find it there, we're done.
+    $drupal_class = $working_dir . '/web/core/lib/Drupal.php';
+    if (file_exists($drupal_class)) {
+      return $drupal_class;
+    }
+    // Try with drupal/core-composer-scaffold configuration.
+    $extra = (new JsonFileUtility(new JsonFile($this->composerBackupPath)))->getExtra();
+    $drupal_class = realpath($working_dir . ($extra['drupal-scaffold']['locations']['web-root'] ?? '') . 'core/lib/Drupal.php');
+    if (file_exists($drupal_class)) {
+      return $drupal_class;
     }
     return FALSE;
   }
