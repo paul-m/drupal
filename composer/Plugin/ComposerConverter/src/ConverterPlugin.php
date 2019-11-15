@@ -16,9 +16,9 @@ class ConverterPlugin implements PluginInterface, Capable {
   }
 
   public function getCapabilities() {
-    return array(
+    return [
       ComposerCommandProvider::class => CommandProvider::class,
-    );
+    ];
   }
 
 }

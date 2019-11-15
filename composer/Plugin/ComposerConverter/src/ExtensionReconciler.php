@@ -15,10 +15,17 @@ class ExtensionReconciler {
   protected $needThesePackages = NULL;
 
   /**
+   * The old composer.json file we'll inspect.
    *
-   * @var \Composer\Json\JsonFile
+   * @var \Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility
    */
-  protected $composerJsonFile;
+  protected $fromUtility;
+
+  /**
+   * The full path to the Composer working directory.
+   *
+   * @var string
+   */
   protected $workingDir;
 
   /**
@@ -30,23 +37,23 @@ class ExtensionReconciler {
    */
   protected $projects = NULL;
 
-
-
   /**
    * Construct a reconciler.
    *
-   * @param string $composer_json_path
+   * @param \Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility $json_utility
    *   Full path to a composer.json file we'll reconcile against.
    * @param string $working_dir
-   *   Relative working directory as specified from Composer.
+   *   Full path to the working directory as specified from Composer.
    */
-  public function __construct($composer_json_path, $working_dir) {
-    $this->composerJsonFile = new JsonFile($composer_json_path);
+  public function __construct(JsonFileUtility $json_utility, $working_dir) {
+    $this->fromUtility = $json_utility;
     $this->workingDir = $working_dir;
   }
 
   /**
    * Get packages for extensions in filesystem, but not in composer.json.
+   *
+   * @todo This only populates the packages per prefer-projects.
    *
    * @return string[]
    *   Array of extension package names, such as drupal/ajax_example, keyed by
@@ -60,11 +67,9 @@ class ExtensionReconciler {
   }
 
   /**
-   * Get extension packages which were specified in the given composer.json.
+   * Get extension packages specified in the composer.json we're converting.
    *
-   * @param string $composer_json_path
-   *   Full path to the composer.json file whose requirements we want to preserve.
-   * @param type $dev
+   * @param bool $dev
    *   (optional) Whether to look in require-dev instead of require. Defaults to
    *   FALSE.
    *
@@ -72,12 +77,12 @@ class ExtensionReconciler {
    *   Composer package specifications for extensions. Key is package name and value
    *   is version constraint.
    */
-  public function getSpecifiedExtensions($composer_json_path, $dev = FALSE) {
+  public function getSpecifiedExtensions($dev = FALSE) {
     $require_spec = [];
     if ($this->projects === NULL) {
       $this->processNeededPackages();
     }
-    $require = (new JsonFileUtility(new JsonFile($composer_json_path)))->getRequire($dev);
+    $require = $this->fromUtility->getRequire($dev);
     foreach ($this->projects as $project_name => $extensions) {
       // Did the user specify some extensions by their project name?
       $package = 'drupal/' . $project_name;
@@ -127,7 +132,7 @@ class ExtensionReconciler {
     }
 
     // Reconcile extensions against require and require-dev.
-    $require = (new JsonFileUtility($this->composerJsonFile))->getCombinedRequire();
+    $require = $this->fromUtility->getCombinedRequire();
 
     // Concern ourselves with drupal/ namespaced packages.
     $require = array_filter($require, function ($item) {

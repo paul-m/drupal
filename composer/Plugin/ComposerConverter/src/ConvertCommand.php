@@ -32,7 +32,7 @@ class ConvertCommand extends InitCommand {
    *
    * @var string
    */
-  private $composerBackupPath;
+  private $backupComposerJsonPath;
   private $rootComposerJsonPath;
   protected $userCanceled = FALSE;
 
@@ -108,8 +108,8 @@ EOT
     }
 
     // Make a backup of the composer.json file.
-    $this->composerBackupPath = $this->createBackup($working_dir, $this->rootComposerJsonPath);
-    $this->composerBackupContents = file_get_contents($this->composerBackupPath);
+    $this->backupComposerJsonPath = $this->createBackup($working_dir, $this->rootComposerJsonPath);
+    $this->composerBackupContents = file_get_contents($this->backupComposerJsonPath);
 
     // Replace composer.json with our template.
     $drupal_class_file = $this->locateDrupalClassFile($working_dir);
@@ -126,24 +126,33 @@ EOT
       return 1;
     }
 
+    // Start manipulating the root composer.json.
+    $backup_utility = new JsonFileUtility(new JsonFile($this->backupComposerJsonPath));
+    $manipulator = new JsonManipulator(file_get_contents($this->rootComposerJsonPath));
+
     // Copy config for: Repositories, patches, config for drupal/core-* plugins.
-    $this->copyRepositories($this->rootComposerJsonPath);
-    $this->copyExtra($this->rootComposerJsonPath);
+    $this->copyRepositories($backup_utility, $manipulator);
+    $this->copyExtra($backup_utility, $manipulator);
 
     // @todo: Configure drupal/core-composer-scaffold based on
     //        drupal-composer/drupal-scaffold config.',
     ;
 
     // Gather existing extension dependencies from the old composer.json file.
-    $extension_require = $this->getRequiredExtensions($working_dir);
+    $reconciler = new ExtensionReconciler($backup_utility, $working_dir);
+    $extension_require = [
+      'require' => $reconciler->getSpecifiedExtensions(),
+      'require-dev' => $reconciler->getSpecifiedExtensions(TRUE),
+    ];
     $sort_packages = $input->getOption('sort-packages') || (new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)))->getSortPackages();
-    $contents = file_get_contents($this->rootComposerJsonPath);
-    $manipulator = new JsonManipulator($contents);
     foreach ($extension_require as $property_name => $dependencies) {
       foreach ($dependencies as $package_name => $constraint) {
         $manipulator->addLink($property_name, $package_name, $constraint, $sort_packages);
       }
     }
+
+    // Finally write out our new composer.json content. We do this so that adding
+    // require and require-dev can resolve against any changes to repositories.
     file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
 
     // Package names of packages we should add, such as cweagans/composer-patches.
@@ -153,12 +162,14 @@ EOT
     $add_packages = [];
 
     // If extra has patch info, require cweagans/composer-patches.
-    if ($this->hasPatchesConfig()) {
+    if ($this->hasPatchesConfig($backup_utility)) {
       $add_packages['cweagans/composer-patches'] = 'cweagans/composer-patches';
     }
 
+    // Make a new reconciler for our root composer.json, since it now has all the
+    // extension packages from
+    $reconciler = new ExtensionReconciler(new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)), $working_dir);
     // Add requires for extensions on the file system.
-    $reconciler = new ExtensionReconciler($this->composerBackupPath, $working_dir);
     $add_packages = array_merge(
       $add_packages,
       $reconciler->getUnreconciledPackages($input->getOption('prefer-projects'))
@@ -170,27 +181,26 @@ EOT
       // Use the factory to create a new Composer object, so that we can use changes
       // in our root composer.json.
       $composer = Factory::create($this->getIO(), $this->rootComposerJsonPath);
-      $repos = $composer->getRepositoryManager()->getRepositories();
 
+      // Populate $this->repos so that InitCommand can use it.
       $this->repos = new CompositeRepository(array_merge(
           [new PlatformRepository([], $composer->getConfig()->get('platform') ?: [])],
-          $repos
+          $composer->getRepositoryManager()->getRepositories()
       ));
 
       // Figure out prefer-stable.
       if ($composer->getPackage()->getPreferStable()) {
-        $prefer_stable = 'stable';
+        $preferred_stability = 'stable';
       }
       else {
-        $prefer_stable = $composer->getPackage()->getMinimumStability();
+        $preferred_stability = $composer->getPackage()->getMinimumStability();
       }
       $php_version = $this->repos->findPackage('php', '*')->getPrettyVersion();
 
-      $requirements = $this->determineRequirements($input, $output, $add_packages, $php_version, $prefer_stable, !$input->getOption('no-update'));
+      $requirements = $this->determineRequirements($input, $output, $add_packages, $php_version, $preferred_stability, !$input->getOption('no-update'));
       if ($requirements) {
         // Add our new dependencies.
-        $contents = file_get_contents($this->rootComposerJsonPath);
-        $manipulator = new JsonManipulator($contents);
+        $manipulator = new JsonManipulator(file_get_contents($this->rootComposerJsonPath));
         foreach ($this->formatRequirements($requirements) as $package => $constraint) {
           $manipulator->addLink('require', $package, $constraint, $sort_packages);
         }
@@ -223,11 +233,11 @@ EOT
    *   Top level key is either 'require' or 'require-dev'. Second-level keys are
    *   package names. Values are version constraints.
    */
-  protected function getRequiredExtensions($working_dir) {
-    $reconciler = new ExtensionReconciler($this->composerBackupPath, $working_dir);
+  protected function getRequiredExtensions(JsonFileUtility $from_util, $working_dir) {
+    $reconciler = new ExtensionReconciler($from_util, $working_dir);
     return [
-      'require' => $reconciler->getSpecifiedExtensions($this->composerBackupPath),
-      'require-dev' => $reconciler->getSpecifiedExtensions($this->composerBackupPath, TRUE),
+      'require' => $reconciler->getSpecifiedExtensions($from_util),
+      'require-dev' => $reconciler->getSpecifiedExtensions($from_util, TRUE),
     ];
   }
 
@@ -244,7 +254,15 @@ EOT
     return $backup_path;
   }
 
-  protected function copyExtra($root_file_path) {
+  /**
+   * Copy known-good extra configurations from old to new.
+   *
+   * @param \Composer\Json\JsonFile $from
+   *   The old composer.json file.
+   * @param string $to
+   *   Location of the new composer.json file.
+   */
+  protected function copyExtra(JsonFileUtility $from, JsonManipulator $to) {
     $extras_to_copy = [
       'drupal-core-project-message',
       'drupal-scaffold',
@@ -257,25 +275,23 @@ EOT
       'patches-ignore',
       'enable-patching',
     ];
-    $extra_json = (new JsonFileUtility(new JsonFile($this->composerBackupPath)))->getExtra();
+    $from_extra = $from->getExtra();
 
-    foreach (array_keys($extra_json) as $extra) {
+    foreach (array_keys($from_extra) as $extra) {
       if (!in_array($extra, $extras_to_copy)) {
-        unset($extra_json[$extra]);
+        unset($from_extra[$extra]);
       }
     }
 
-    $manipulator = new JsonManipulator(file_get_contents($root_file_path));
-    foreach ($extra_json as $name => $value) {
-      $manipulator->addSubNode('extra', $name, $value);
+    foreach ($from_extra as $name => $value) {
+      $to->addSubNode('extra', $name, $value);
     }
-    file_put_contents($root_file_path, $manipulator->getContents());
   }
 
   /**
    * Copy config for: Repositories, patches, config for drupal/core-* plugins.
    */
-  protected function copyRepositories($root_file_path) {
+  protected function copyRepositories(JsonFileUtility $from, JsonManipulator $to) {
     // Ensure that new root has Drupal Composer facade repo.
     $required_repositories = [
       'drupal_composer_facade' => [
@@ -284,21 +300,19 @@ EOT
       ],
     ];
 
-    $backup_repositories_json = (new JsonFileUtility(new JsonFile($this->composerBackupPath)))->getRepositories();
+    $from_repositories = $from->getRepositories();
 
-    $manipulator = new JsonManipulator(file_get_contents($root_file_path));
-    $manipulator->addMainKey('repositories', array_merge($backup_repositories_json, $required_repositories));
-    file_put_contents($root_file_path, $manipulator->getContents());
+    $to->addMainKey('repositories', array_merge($from_repositories, $required_repositories));
   }
 
-  protected function hasPatchesConfig() {
+  protected function hasPatchesConfig(JsonFileUtility $from) {
     $patch_config_keys = [
       'patches',
       'patches-file',
       'patches-ignore',
       'enable-patching',
     ];
-    $extra_json_keys = array_keys((new JsonFileUtility(new JsonFile($this->composerBackupPath)))->getExtra());
+    $extra_json_keys = array_keys($from->getExtra());
     foreach ($patch_config_keys as $patch_config) {
       if (in_array($patch_config, $extra_json_keys)) {
         return TRUE;
@@ -345,8 +359,8 @@ EOT
       return $drupal_class;
     }
     // Try with drupal/core-composer-scaffold configuration.
-    $extra = (new JsonFileUtility(new JsonFile($this->composerBackupPath)))->getExtra();
-    $drupal_class = realpath($working_dir . ($extra['drupal-scaffold']['locations']['web-root'] ?? '') . 'core/lib/Drupal.php');
+    $extra = (new JsonFileUtility(new JsonFile($this->backupComposerJsonPath)))->getExtra();
+    $drupal_class = realpath($working_dir . ($extra['drupal-scaffold']['locations']['web-root'] ?? '') . '/core/lib/Drupal.php');
     if (file_exists($drupal_class)) {
       return $drupal_class;
     }

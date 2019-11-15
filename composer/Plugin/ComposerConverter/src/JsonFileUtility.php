@@ -25,8 +25,11 @@ class JsonFileUtility {
     return $this->jsonFileContents;
   }
 
+  public function getJsonFile() {
+    return $this->jsonFile;
+  }
+
   public function getCombinedRequire() {
-    $json_contents = $this->getContents();
     return array_merge(
       $this->getRequire(),
       $this->getRequire(TRUE)
