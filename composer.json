@@ -13,7 +13,6 @@
         "drupal/core": "self.version",
         "drupal/core-project-message": "self.version",
         "drupal/core-composer-converter": "self.version",
-        "drupal/core-composer-status": "self.version",
         "wikimedia/composer-merge-plugin": "^1.4"
     },
     "require-dev": {
@@ -117,10 +116,6 @@
         {
             "type": "path",
             "url": "composer/Plugin/VendorHardening"
-        },
-        {
-            "type": "path",
-            "url": "composer/Plugin/ComposerStatus"
         },
         {
             "type": "path",

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5fa1f8964b5c34bc001f25b1e503f1ef",
+    "content-hash": "b8c290f2b20986b83d78d5b5ab2e296f",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -899,31 +899,6 @@
             "autoload": {
                 "psr-4": {
                     "Drupal\\Composer\\Plugin\\ComposerConverter\\": "src"
-                }
-            },
-            "description": "Get the Composer status for this Drupal project."
-        },
-        {
-            "name": "drupal/core-composer-status",
-            "version": "8.9.x-dev",
-            "dist": {
-                "type": "path",
-                "url": "composer/Plugin/ComposerStatus",
-                "reference": "5208435bf18df0a8276fc8272af3857a0db9b9a5"
-            },
-            "require": {
-                "composer-plugin-api": "^1.0.0",
-                "php": ">=5.6",
-                "symfony/finder": "^3.4",
-                "symfony/yaml": "^3.4"
-            },
-            "type": "composer-plugin",
-            "extra": {
-                "class": "Drupal\\Composer\\Plugin\\ComposerStatus\\Plugin"
-            },
-            "autoload": {
-                "psr-4": {
-                    "Drupal\\Composer\\Plugin\\ComposerStatus\\": "src"
                 }
             },
             "description": "Get the Composer status for this Drupal project."
@@ -3928,9 +3903,6 @@
                 "ext-zip": "Enabling the zip extension allows you to unzip archives",
                 "ext-zlib": "Allow gzip compression of HTTP requests"
             },
-            "bin": [
-                "bin/composer"
-            ],
             "type": "library",
             "extra": {
                 "branch-alias": {
@@ -6400,7 +6372,6 @@
         "drupal/core": 20,
         "drupal/core-project-message": 20,
         "drupal/core-composer-converter": 20,
-        "drupal/core-composer-status": 20,
         "behat/mink": 20,
         "behat/mink-selenium2-driver": 20
     },
