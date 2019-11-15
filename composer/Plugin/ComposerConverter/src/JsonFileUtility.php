@@ -28,9 +28,18 @@ class JsonFileUtility {
   public function getCombinedRequire() {
     $json_contents = $this->getContents();
     return array_merge(
-      $json_contents['require'] ?? [],
-      $json_contents['require-dev'] ?? []
+      $this->getRequire(),
+      $this->getRequire(TRUE)
     );
+  }
+
+  public function getRequire($dev = FALSE) {
+    $key = 'require';
+    if ($dev) {
+      $key .= '-dev';
+    }
+    $json_contents = $this->getContents();
+    return $json_contents[$key] ?? [];
   }
 
   public function getExtra() {

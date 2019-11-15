@@ -30,6 +30,8 @@ class ExtensionReconciler {
    */
   protected $projects = NULL;
 
+
+
   /**
    * Construct a reconciler.
    *
@@ -55,6 +57,41 @@ class ExtensionReconciler {
       $this->processNeededPackages($prefer_projects);
     }
     return $this->needThesePackages;
+  }
+
+  /**
+   * Get extension packages which were specified in the given composer.json.
+   *
+   * @param string $composer_json_path
+   *   Full path to the composer.json file whose requirements we want to preserve.
+   * @param type $dev
+   *   (optional) Whether to look in require-dev instead of require. Defaults to
+   *   FALSE.
+   *
+   * @return string[]
+   *   Composer package specifications for extensions. Key is package name and value
+   *   is version constraint.
+   */
+  public function getSpecifiedExtensions($composer_json_path, $dev = FALSE) {
+    $require_spec = [];
+    if ($this->projects === NULL) {
+      $this->processNeededPackages();
+    }
+    $require = (new JsonFileUtility(new JsonFile($composer_json_path)))->getRequire($dev);
+    foreach ($this->projects as $project_name => $extensions) {
+      // Did the user specify some extensions by their project name?
+      $package = 'drupal/' . $project_name;
+      if (key_exists($package, $require)) {
+        $require_spec[$package] = $require[$package];
+      }
+      foreach ($extensions as $machine_name) {
+        $package = 'drupal/' . $machine_name;
+        if (key_exists($package, $require)) {
+          $require_spec[$package] = $require[$package];
+        }
+      }
+    }
+    return $require_spec;
   }
 
   /**

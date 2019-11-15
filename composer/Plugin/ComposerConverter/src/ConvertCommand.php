@@ -128,6 +128,23 @@ EOT
     // @todo: Configure drupal/core-composer-scaffold based on
     //        drupal-composer/drupal-scaffold config.',
     ;
+
+    // Add packages we know we should bring forward from the old composer.json.
+    // Figure out if we should sort packages.
+    $sort_packages = $input->getOption('sort-packages') || (new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)))->getSortPackages();
+    $contents = file_get_contents($this->rootComposerJsonPath);
+    $manipulator = new JsonManipulator($contents);
+    $reconciler = new ExtensionReconciler($this->composerBackupPath, $working_dir);
+    foreach ($reconciler->getSpecifiedExtensions($this->composerBackupPath) as $package => $constraint) {
+      error_log("$package -> $constraint");
+      $manipulator->addLink('require', $package, $constraint, $sort_packages);
+    }
+    foreach ($reconciler->getSpecifiedExtensions($this->composerBackupPath, TRUE) as $package => $constraint) {
+      $manipulator->addLink('require-dev', $package, $constraint, $sort_packages);
+    }
+    file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
+
+
     // Package names of packages we should add, such as cweagans/composer-patches.
     // For normal packages, the key and value are both the package name. For Drupal
     // extensions, the key is the extension machine name, and the value is the
@@ -140,7 +157,6 @@ EOT
     }
 
     // Add requires for extensions on the file system.
-    $reconciler = new ExtensionReconciler($this->composerBackupPath, $working_dir);
     $add_packages = array_merge($add_packages, $reconciler->getUnreconciledPackages($input->getOption('prefer-projects')));
 
     // Add all the packages we need.
@@ -162,9 +178,6 @@ EOT
       }
       $phpVersion = $this->repos->findPackage('php', '*')->getPrettyVersion();
       $requirements = $this->determineRequirements($input, $output, $add_packages, $phpVersion, $prefer_stable, !$input->getOption('no-update'));
-
-      // Figure out if we should sort packages.
-      $sort_packages = $input->getOption('sort-packages') || (new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)))->getSortPackages();
 
       // Add our new dependencies.
       $contents = file_get_contents($this->rootComposerJsonPath);
