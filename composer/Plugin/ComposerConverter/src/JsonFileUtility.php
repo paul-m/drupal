@@ -36,6 +36,15 @@ class JsonFileUtility {
     );
   }
 
+  /**
+   * Get declared requirements from the composer.json file.
+   *
+   * @param bool $dev
+   *   Should we get require-dev?
+   *
+   * @return string[][]
+   *   The require or reqire-dev section of the composer.json file.
+   */
   public function getRequire($dev = FALSE) {
     $key = 'require';
     if ($dev) {

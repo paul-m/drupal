@@ -40,13 +40,13 @@ class ExtensionReconciler {
   /**
    * Construct a reconciler.
    *
-   * @param \Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility $json_utility
+   * @param \Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility $from_utility
    *   Full path to a composer.json file we'll reconcile against.
    * @param string $working_dir
    *   Full path to the working directory as specified from Composer.
    */
-  public function __construct(JsonFileUtility $json_utility, $working_dir) {
-    $this->fromUtility = $json_utility;
+  public function __construct(JsonFileUtility $from_utility, $working_dir) {
+    $this->fromUtility = $from_utility;
     $this->workingDir = $working_dir;
   }
 
