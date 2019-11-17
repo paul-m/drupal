@@ -112,7 +112,7 @@ EOT
     $this->backupComposerJsonPath = $this->createBackup($working_dir, $this->rootComposerJsonPath);
     $this->composerBackupContents = file_get_contents($this->backupComposerJsonPath);
 
-    // Replace composer.json with our template.
+    // Replace composer.json with our template...
     $io->write(' - Creating new composer.json file...');
     $drupal_class_file = $this->locateDrupalClassFile($working_dir);
     $core_minor = $this->determineDrupalCoreVersion($drupal_class_file);
@@ -124,7 +124,7 @@ EOT
     );
     if (file_put_contents($this->rootComposerJsonPath, $template_contents) === FALSE) {
       $io->write('<error>Unable to replace composer.json file.</error>');
-      $this->revertComposerFile();
+      $this->revertComposerFile(FALSE);
       return 1;
     }
 
@@ -204,7 +204,8 @@ EOT
       }
       $php_version = $this->repos->findPackage('php', '*')->getPrettyVersion();
 
-      $requirements = $this->determineRequirements($input, $output, $add_packages, $php_version, $preferred_stability, !$input->getOption('no-update'));
+      // Ask InitCommand to do our first pass at constraint resolution.
+      $requirements = $this->determineRequirements($input, $output, $add_packages, $php_version, $preferred_stability);
       if ($requirements) {
         // Add our new dependencies.
         $manipulator = new JsonManipulator(file_get_contents($this->rootComposerJsonPath));
@@ -254,8 +255,19 @@ EOT
 
   /**
    *
+   * @param string $working_dir
+   *   Composer working-dir.
    * @param string $root_file_path
+   *   Path to the root Composer.json file we wish to backup.
+   *
    * @return string
+   *   Full path to the backup file.
+   *
+   * @throws \Excecption
+   *   Thrown when the backup process fails.
+   *
+   * @todo Use a datetime/hash type filename for the backup so we don't overwrite the
+   *       previous one.
    */
   protected function createBackup($working_dir, $root_file_path) {
     $backup_path = $working_dir . '/backup.composer.json';
