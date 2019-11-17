@@ -103,6 +103,9 @@ class ExtensionReconciler {
    * Get packages for extensions in filesystem we don't know how to deal with.
    *
    * These could be path repos or other stuff we can't figure out.
+   *
+   * @return string[]
+   *   Array of extension machine names we discovered, keyed by machine name.
    */
   public function getExoticPackages() {
     if ($this->exoticSetupExtensions === NULL) {
