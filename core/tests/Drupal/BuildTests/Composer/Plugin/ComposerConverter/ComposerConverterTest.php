@@ -10,13 +10,18 @@ use Drupal\BuildTests\Framework\BuildTestBase;
  */
 class ComposerConverterTest extends BuildTestBase {
 
-  public function testThingie() {
+  /**
+   * Perform a conversion on the core codebase.
+   *
+   * This test really only shows that the command is discovered and that it performs
+   * without error on a basic code path.
+   */
+  public function testConvert() {
     $this->copyCodebase();
 
     $this->executeCommand('composer install');
     $this->assertCommandSuccessful();
 
-    $this->assertDirectoryExists($working_dir);
     $this->executeCommand('composer drupal-legacy-convert --no-interaction');
     $this->assertCommandSuccessful();
 
