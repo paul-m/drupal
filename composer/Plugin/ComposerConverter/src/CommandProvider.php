@@ -7,9 +7,10 @@ use Composer\Plugin\Capability\CommandProvider as CommandProviderCapability;
 class CommandProvider implements CommandProviderCapability {
 
   public function getCommands() {
-    return array(
+    return [
       new ConvertCommand(),
-    );
+      new ExtensionReconcileCommand(),
+    ];
   }
 
 }
