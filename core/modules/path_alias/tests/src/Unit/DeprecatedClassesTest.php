@@ -221,7 +221,7 @@ class DeprecatedClassesTest extends UnitTestCase {
       }
       else {
         $type = $parameter->getType();
-        $class_name = $type ? $type->getName() : NULL;
+        $class_name = $type ? (string) $type : NULL;
       }
       $args[$name] = isset($class_name) && $class_name !== 'array' ? $this->prophesize($class_name)->reveal() : [];
     }
