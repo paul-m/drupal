@@ -15,6 +15,7 @@ use Composer\Repository\PlatformRepository;
 use Composer\Semver\Semver;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Console\Input\ArrayInput;
 
 /**
  */
@@ -156,76 +157,24 @@ EOT
       }
     }
 
+    // @todo: Include patch plugin if patches are present.
+
     // Finally write out our new composer.json content. We do this so that adding
     // require and require-dev can resolve against any changes to repositories.
     file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
 
-    // Package names of packages we should add, such as cweagans/composer-patches.
-    // For normal packages, the key and value are both the package name. For Drupal
-    // extensions, the key is the extension machine name, and the value is the
-    // package name.
-    $add_packages = [];
-
-    // If extra has patch info, require cweagans/composer-patches.
-    $io->write(' - Determining whether project needs patches...');
-    if ($this->hasPatchesConfig($backup_utility)) {
-      $add_packages['cweagans/composer-patches'] = 'cweagans/composer-patches';
-    }
-
-    // Make a new reconciler for our root composer.json, since it now has all the
-    // extension packages from the backup.
-    $io->write(' - Scanning the filesystem for extensions not in the composer.json file...');
-    $reconciler = new ExtensionReconciler(
-      new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)),
-      $working_dir,
-      $input->getOption('prefer-projects')
+    /* @var $reconcile_command \Composer\Command\BaseCommand */
+    $reconcile_command = $this->getApplication()->find('drupal:reconcile-extensions');
+    $return_code = $reconcile_command->run(
+      new ArrayInput([
+        '--dry-run' => $input->getOption('dry-run'),
+        '--no-update' => $input->getOption('no-update'),
+        '--sort-packages' => $input->getOption('sort-packages'),
+        '--prefer-projects' => $input->getOption('prefer-projects'),
+        '--no-interaction' => TRUE,
+      ]),
+      $output
     );
-    // Add requires for extensions on the file system.
-    $add_packages = array_merge(
-      $add_packages,
-      $reconciler->getUnreconciledPackages()
-    );
-
-    // Add all the packages we need. We have to do some basic solving here, much like
-    // composer require does.
-    if ($add_packages) {
-      // Use the factory to create a new Composer object, so that we can use changes
-      // in our root composer.json.
-      $composer = Factory::create($this->getIO(), $this->rootComposerJsonPath);
-
-      // Populate $this->repos so that InitCommand can use it.
-      $this->repos = new CompositeRepository(array_merge(
-          [new PlatformRepository([], $composer->getConfig()->get('platform') ?: [])],
-          $composer->getRepositoryManager()->getRepositories()
-      ));
-
-      // Figure out prefer-stable.
-      if ($composer->getPackage()->getPreferStable()) {
-        $preferred_stability = 'stable';
-      }
-      else {
-        $preferred_stability = $composer->getPackage()->getMinimumStability();
-      }
-      $php_version = $this->repos->findPackage('php', '*')->getPrettyVersion();
-
-      // Ask InitCommand to do our first pass at constraint resolution.
-      $requirements = $this->determineRequirements($input, $output, $add_packages, $php_version, $preferred_stability);
-      if ($requirements) {
-        // Add our new dependencies.
-        $manipulator = new JsonManipulator(file_get_contents($this->rootComposerJsonPath));
-        foreach ($this->formatRequirements($requirements) as $package => $constraint) {
-          $manipulator->addLink('require', $package, $constraint, $sort_packages);
-        }
-        file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
-      }
-    }
-
-    // Alert the user that they have unreconciled extensions.
-    if ($exotic = $reconciler->getExoticPackages()) {
-      $style = new SymfonyStyle($input, $output);
-      $io->write(' - Discovered extensions which are not in the original composer.json, and which do not have drupal.org projects. These extensions will need to be added manually if you wish to manage them through Composer:');
-      $style->listing($exotic);
-    }
 
     $io->write('<info>Finished!</info>');
     $io->write('');
