@@ -47,7 +47,7 @@ class UnreconciledNotifier {
     $reconciler = new ExtensionReconciler($from_utility, $working_dir, true);
 
     if ($reconciler->getUnreconciledPackages()) {
-      $this->io->write("<info>This project has extensions on the file system which are not reflected in the composer.json file. Run 'composer drupal:reconcile-extensions' to fix this.</info>");
+      $this->io->write("<info>This project has extensions on the file system which are not reflected in the composer.json file. Run 'composer drupal:reconcile-extensions --help' to fix this.</info>");
     }
     if ($reconciler->getExoticPackages()) {
       $this->io->write("<info>This project has extensions on the file system which will require manual updating.</info>");

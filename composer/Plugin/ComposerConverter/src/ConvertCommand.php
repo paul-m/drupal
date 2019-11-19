@@ -165,6 +165,7 @@ EOT
 
     /* @var $reconcile_command \Composer\Command\BaseCommand */
     $reconcile_command = $this->getApplication()->find('drupal:reconcile-extensions');
+    $reconcile_command->setSubCommand(TRUE);
     $return_code = $reconcile_command->run(
       new ArrayInput([
         '--dry-run' => $input->getOption('dry-run'),

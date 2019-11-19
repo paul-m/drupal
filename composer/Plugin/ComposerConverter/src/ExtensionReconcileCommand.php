@@ -20,19 +20,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  */
 class ExtensionReconcileCommand extends InitCommand {
 
-  /**
-   * Contents of the composer.json file before we modified it.
-   *
-   * @var string
-   */
-  private $composerBackupContents;
+  use SubCommandTrait;
 
-  /**
-   * Full path to the backup file we made of the original composer.json file.
-   *
-   * @var string
-   */
-  private $backupComposerJsonPath;
   private $rootComposerJsonPath;
   protected $userCanceled = FALSE;
 
@@ -66,19 +55,21 @@ EOT
    * {@inheritdoc}
    */
   protected function interact(InputInterface $input, OutputInterface $output) {
-    $style_io = new SymfonyStyle($input, $output);
-    $output->writeln('<info>The following actions will be performed:</info>');
-    $item_list = [
-      'Make a backup of your composer.json file.',
-      'Replace composer.json with one named drupal/converted-project.',
-      'Copy config for: Repositories, patches, config for drupal/core-* plugins.',
-      'Add requires for extensions on the file system.',
-      'Configure drupal/core-composer-scaffold based on drupal-composer/drupal-scaffold config.',
-    ];
-    $style_io->listing($item_list);
     if (!$input->getOption('no-interaction')) {
-      $helper = $this->getHelper('question');
-      $this->userCanceled = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', false));
+      $style_io = new SymfonyStyle($input, $output);
+      $output->writeln('<info>The following actions will be performed:</info>');
+      $item_list = [
+        'Make a backup of your composer.json file.',
+        'Replace composer.json with one named drupal/converted-project.',
+        'Copy config for: Repositories, patches, config for drupal/core-* plugins.',
+        'Add requires for extensions on the file system.',
+        'Configure drupal/core-composer-scaffold based on drupal-composer/drupal-scaffold config.',
+      ];
+      $style_io->listing($item_list);
+      if (!$input->getOption('no-interaction')) {
+        $helper = $this->getHelper('question');
+        $this->userCanceled = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', false));
+      }
     }
   }
 
@@ -146,17 +137,8 @@ EOT
       $style->listing($exotic);
     }
 
-    $io->write(['<info>Finished!</info>', '']);
-  }
-
-  public function revertComposerFile($hardExit = true) {
-    $io = $this->getIO();
-
-    $io->writeError("\n" . '<error>Conversion failed, reverting ' . $this->rootComposerJsonPath . ' to its original contents.</error>');
-    file_put_contents($this->rootComposerJsonPath, $this->composerBackupContents);
-
-    if ($hardExit) {
-      exit(1);
+    if (!$this->isSubCommand()) {
+      $io->write(['<info>Finished!</info>', '']);
     }
   }
 
