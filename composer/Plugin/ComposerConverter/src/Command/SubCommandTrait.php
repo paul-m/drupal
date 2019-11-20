@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\Composer\Plugin\ComposerConverter;
+namespace Drupal\Composer\Plugin\ComposerConverter\Command;
 
 /**
  * Helper for when your command can be run as a sub-command.

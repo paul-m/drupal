@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\Composer\Plugin\ComposerConverter;
+namespace Drupal\Composer\Plugin\ComposerConverter\Command;
 
 use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
 use Symfony\Component\Console\Input\InputInterface;
