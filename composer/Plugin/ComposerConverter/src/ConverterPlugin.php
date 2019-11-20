@@ -5,30 +5,18 @@ namespace Drupal\Composer\Plugin\ComposerConverter;
 use Composer\Composer;
 use Composer\EventDispatcher\EventSubscriberInterface;
 use Composer\IO\IOInterface;
+use Composer\Plugin\Capability\CommandProvider as ComposerCommandProvider;
 use Composer\Plugin\Capable;
 use Composer\Plugin\PluginInterface;
-use Composer\Plugin\Capability\CommandProvider as ComposerCommandProvider;
 use Composer\Script\Event;
 
+/**
+ * Point of entry for Composer's plugin API.
+ */
 class ConverterPlugin implements Capable, EventSubscriberInterface, PluginInterface {
 
-  /**
-   * The Compsoer object.
-   *
-   * @var \Composer\Composer
-   */
-  protected $composer;
-
-  /**
-   * The IO object.
-   *
-   * @var \Composer\IO\IOInterface
-   */
-  protected $io;
-
   public function activate(Composer $composer, IOInterface $io) {
-    $this->composer = $composer;
-    $this->io = $io;
+    // Necessary for API.
   }
 
   public function getCapabilities() {

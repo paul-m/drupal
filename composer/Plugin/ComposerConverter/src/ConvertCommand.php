@@ -7,17 +7,15 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Composer\Command\InitCommand;
-use Composer\Factory;
 use Composer\Json\JsonFile;
 use Composer\Json\JsonManipulator;
-use Composer\Repository\CompositeRepository;
-use Composer\Repository\PlatformRepository;
 use Composer\Semver\Semver;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Input\ArrayInput;
 
 /**
+ * Performs a conversion of a composer.json file.
  */
 class ConvertCommand extends InitCommand {
 
@@ -77,11 +75,7 @@ EOT
     $style_io = new SymfonyStyle($input, $output);
     $output->writeln('<info>The following actions will be performed:</info>');
     $item_list = [
-      'Make a backup of your composer.json file.',
-      'Replace composer.json with one named drupal/converted-project.',
-      'Copy config for: Repositories, patches, config for drupal/core-* plugins.',
-      'Add requires for extensions on the file system.',
-      'Configure drupal/core-composer-scaffold based on drupal-composer/drupal-scaffold config.',
+      'Add stuff to this list.'
     ];
     $style_io->listing($item_list);
     if (!$input->getOption('no-interaction')) {
@@ -181,6 +175,11 @@ EOT
     $io->write('');
   }
 
+  /**
+   * Revert our changes to the composer.json file.
+   *
+   * @param type $hardExit
+   */
   public function revertComposerFile($hardExit = true) {
     $io = $this->getIO();
 

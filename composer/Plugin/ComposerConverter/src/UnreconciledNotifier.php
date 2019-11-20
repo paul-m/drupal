@@ -1,11 +1,5 @@
 <?php
 
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 namespace Drupal\Composer\Plugin\ComposerConverter;
 
 use Composer\Composer;
@@ -15,9 +9,7 @@ use Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility;
 use Composer\Json\JsonFile;
 
 /**
- * Description of UnreconciledNotifier
- *
- * @author paulmitchum
+ * Tell the user if there are unreconciled extension in their Drupal filesystem.
  */
 class UnreconciledNotifier {
 
