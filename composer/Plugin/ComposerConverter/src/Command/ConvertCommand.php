@@ -2,7 +2,9 @@
 
 namespace Drupal\Composer\Plugin\ComposerConverter\Command;
 
+use Drupal\Composer\Plugin\ComposerConverter\DrupalInspector;
 use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
+use Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -115,7 +117,7 @@ EOT
     $template_contents = str_replace(
       '%core_minor%',
       $core_minor,
-      file_get_contents(__DIR__ . '/../templates/template.composer.json')
+      file_get_contents(__DIR__ . '/../../templates/template.composer.json')
     );
     if (file_put_contents($this->rootComposerJsonPath, $template_contents) === FALSE) {
       $io->write('<error>Unable to replace composer.json file.</error>');
@@ -152,7 +154,6 @@ EOT
     }
 
     // @todo: Include patch plugin if patches are present.
-
     // Finally write out our new composer.json content. We do this so that adding
     // require and require-dev can resolve against any changes to repositories.
     file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
@@ -167,7 +168,7 @@ EOT
         '--sort-packages' => $input->getOption('sort-packages'),
         '--prefer-projects' => $input->getOption('prefer-projects'),
         '--no-interaction' => TRUE,
-      ]),
+        ]),
       $output
     );
 

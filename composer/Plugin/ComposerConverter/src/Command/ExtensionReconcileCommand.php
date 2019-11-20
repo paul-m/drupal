@@ -2,24 +2,21 @@
 
 namespace Drupal\Composer\Plugin\ComposerConverter\Command;
 
-use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
 use Composer\Command\InitCommand;
 use Composer\Factory;
 use Composer\Json\JsonFile;
 use Composer\Json\JsonManipulator;
 use Composer\Repository\CompositeRepository;
 use Composer\Repository\PlatformRepository;
+use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
+use Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-/**
- */
-class ExtensionReconcileCommand extends InitCommand {
-
-  use SubCommandTrait;
+class ExtensionReconcileCommand extends ConvertCommandBase {
 
   private $rootComposerJsonPath;
   protected $userCanceled = FALSE;
