@@ -27,12 +27,12 @@ class ExtensionReconcileCommand extends ConvertCommandBase {
     $this
       ->setName('drupal:reconcile-extensions')
       ->setDescription('Declare your extensions in composer.json.')
-      ->setDefinition(array(
+      ->setDefinition([
         new InputOption('dry-run', NULL, InputOption::VALUE_NONE, 'Display all the changes that would occur, without performing them.'),
-        new InputOption('no-update', null, InputOption::VALUE_NONE, 'Perform conversion but does not perform update.'),
-        new InputOption('sort-packages', null, InputOption::VALUE_NONE, 'Sorts packages when adding/updating a new dependency'),
+        new InputOption('no-update', NULL, InputOption::VALUE_NONE, 'Perform conversion but does not perform update.'),
+        new InputOption('sort-packages', NULL, InputOption::VALUE_NONE, 'Sorts packages when adding/updating a new dependency'),
         new InputOption('prefer-projects', NULL, InputOption::VALUE_NONE, 'When possible, use d.o project name instead of extension name.'),
-      ))
+      ])
       ->setHelp(
         <<<EOT
 This command does the following things:
@@ -42,8 +42,7 @@ This command does the following things:
    to manage them.
  * Remove the existing extensions from the file system.
 EOT
-      )
-    ;
+      );
   }
 
   /**
@@ -61,7 +60,7 @@ EOT
       $style_io->listing($item_list);
       if (!$input->getOption('no-interaction')) {
         $helper = $this->getHelper('question');
-        $this->userCanceled = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', false));
+        $this->userCanceled = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', FALSE));
       }
     }
   }

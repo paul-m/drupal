@@ -101,12 +101,12 @@ class ExtensionReconciler {
     foreach ($this->projects as $project_name => $extensions) {
       // Did the user specify some extensions by their project name?
       $package = 'drupal/' . $project_name;
-      if (key_exists($package, $require)) {
+      if (array_key_exists($package, $require)) {
         $require_spec[$package] = $require[$package];
       }
       foreach ($extensions as $machine_name) {
         $package = 'drupal/' . $machine_name;
-        if (key_exists($package, $require)) {
+        if (array_key_exists($package, $require)) {
           $require_spec[$package] = $require[$package];
         }
       }
