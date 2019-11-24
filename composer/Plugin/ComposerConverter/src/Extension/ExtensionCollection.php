@@ -18,10 +18,27 @@ class ExtensionCollection {
    */
   protected $projectExtensions;
 
+  protected $exoticExtensions;
+
+  public static function create($root_directory, \Iterator $extension_iterator = NULL) {
+    if ($extension_iterator === NULL) {
+      $extension_iterator = static::findInfoFiles($root_directory);
+    }
+    return new static($extension_iterator);
+  }
+
   public function __construct(Extension ...$extensions) {
     $this->extensions = $extensions;
   }
 
+  /**
+   *
+   * @param string $machine_name
+   *   The machine name of the extension.
+   *
+   * @return string
+   *   Path to the containing directory of the extension.
+   */
   public function getPathForExtension($machine_name) {
     /* @var $extension \Drupal\Composer\Plugin\ComposerConverter\Extension\Extension */
     $extension = $this->extensions[$machine_name] ?? NULL;
@@ -31,6 +48,14 @@ class ExtensionCollection {
     return $extension->getInfoFile()->getPath();
   }
 
+  /**
+   *
+   * @param string $project_name
+   *   Drupal.org project name.
+   *
+   * @return \Drupal\Composer\Plugin\ComposerConverter\Extension\Extension[]
+   *   The extensions which belong to the project.
+   */
   public function getExtensionsForProject($project_name) {
     if (!$this->projectExtensions) {
       $this->sortProjectExtensions();
@@ -38,6 +63,11 @@ class ExtensionCollection {
     return $this->projectExtensions[$project_name] ?? [];
   }
 
+  /**
+   *
+   * @return string[]
+   *   All the project names.
+   */
   public function getProjectNames() {
     if (!$this->projectExtensions) {
       $this->sortProjectExtensions();
@@ -45,14 +75,50 @@ class ExtensionCollection {
     return array_keys($this->projectExtensions);
   }
 
+  /**
+   * Sort extensions into projects.
+   */
   protected function sortProjectExtensions() {
     $this->projectExtensions = [];
     /* @var $extension \Drupal\Composer\Plugin\ComposerConverter\Extension\Extension */
     foreach($this->extensions as $machine_name => $extension) {
-      
-
-
+      if ($project_name = $extension->getProject()) {
+        $this->projectExtensions[$project_name][] = $extension;
+      }
+      else {
+        $this->exoticExtensions[] = $extension;
+      }
     }
+  }
+
+  /**
+   * Find all the info files in the codebase.
+   *
+   * Exclude hidden extensions and those in the 'testing' package.
+   *
+   * @param string $root
+   *
+   * @return \Symfony\Component\Finder\Finder
+   *   Finder object ready for iteration.
+   */
+  protected static function findInfoFiles($root) {
+    // Discover extensions.
+    $finder = new Finder();
+    $finder->in($root)
+      ->exclude(['core', 'vendor'])
+      ->name('*.info.yml')
+      // Test paths can include unmarked test extensions, especially themes.
+      ->notPath('tests')
+      ->filter(function ($info_file) {
+        $info = Yaml::parseFile($info_file);
+        if (isset($info['hidden']) && $info['hidden'] === TRUE) {
+          return FALSE;
+        }
+        if (isset($info['package']) && strtolower($info['package']) == 'testing') {
+          return FALSE;
+        }
+      });
+    return $finder;
   }
 
 }
