@@ -4,6 +4,7 @@ namespace Drupal\Composer\Plugin\ComposerConverter;
 
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
+use Drupal\Composer\Plugin\ComposerConverter\Extension\Extension;
 
 /**
  * Scans the file system, tells you which extensions are not accounted for.
@@ -76,7 +77,7 @@ class ExtensionReconciler {
    */
   public function getUnreconciledPackages() {
     if ($this->needThesePackages === NULL) {
-      $this->processNeededPackages();
+      $this->processPackages();
     }
     return $this->needThesePackages;
   }
@@ -95,7 +96,7 @@ class ExtensionReconciler {
   public function getSpecifiedExtensions($dev = FALSE) {
     $require_spec = [];
     if ($this->projects === NULL) {
-      $this->processNeededPackages();
+      $this->processPackages();
     }
     $require = $this->fromUtility->getRequire($dev);
     foreach ($this->projects as $project_name => $extensions) {
@@ -124,15 +125,15 @@ class ExtensionReconciler {
    */
   public function getExoticPackages() {
     if ($this->exoticSetupExtensions === NULL) {
-      $this->processNeededPackages();
+      $this->processPackages();
     }
     return $this->exoticSetupExtensions;
   }
 
   /**
-   * Process our package and filesystem into reconcilable information.
+   * Process our packages and filesystem into reconcilable information.
    */
-  protected function processNeededPackages() {
+  protected function processPackages() {
     // Find all the extensions in the file system, sorted by D.O project name.
     $this->projects = [];
     // This is our pre-parsed database of info about all the extensions. Keyed by
@@ -140,19 +141,10 @@ class ExtensionReconciler {
     $extension_objects = [];
     /* @var $file \SplFileInfo */
     foreach ($this->findInfoFiles($this->workingDir) as $file) {
-      $info = Yaml::parseFile($file->getPathname());
-      $project = isset($info['project']) ? $info['project'] : '__unknown_project';
-      $extension_name = basename($file->getPathname(), '.info.yml');
-      $e = new Extension();
-      $e->machineName = $extension_name;
-      $e->name = $info['name'] ?? $extension_name;
-      $e->pathname = $file->getPathname();
-      $e->project = $info['project'] ?? NULL;
-      if ($e->version = $info['version'] ?? NULL) {
-        $e->semanticVersion = DrupalInspector::getSemanticVersion($e->version);
-      }
+      $e = new Extension($file);
+      $extension_name = $e->getMachineName();
       $extension_objects[$extension_name] = $e;
-      $this->projects[$project][$extension_name] = $extension_name;
+      $this->projects[$e->getProject('__unknown_project')][$extension_name] = $extension_name;
     }
 
     // Reconcile extensions against require and require-dev.
@@ -172,8 +164,9 @@ class ExtensionReconciler {
       // If our extension is already required and belongs to a project, then
       // we should include that project in the list so that we account for other
       // extensions in the same project.
-      if (isset($extension_objects[$extension_or_project_name]) || !empty($extension_objects[$extension_or_project_name]->project)) {
-        $p = $extension_objects[$extension_or_project_name]->project;
+      // @todo This should be a query against the ExtensionCollection.
+      if (isset($extension_objects[$extension_or_project_name])) {
+        $p = $extension_objects[$extension_or_project_name]->getProject();
         $required_ext_or_proj_names[$p] = $p;
       }
     }
@@ -184,7 +177,7 @@ class ExtensionReconciler {
     $this->exoticSetupExtensions = [];
     if (isset($this->projects['__unknown_project'])) {
       foreach ($this->projects['__unknown_project'] as $extension) {
-        $this->exoticSetupExtensions[$extension] = $extension_objects[$extension]->name;
+        $this->exoticSetupExtensions[$extension] = $extension_objects[$extension]->getName();
       }
       unset($this->projects['__unknown_project']);
     }
