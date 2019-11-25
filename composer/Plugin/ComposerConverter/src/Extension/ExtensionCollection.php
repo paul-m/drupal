@@ -2,6 +2,12 @@
 
 namespace Drupal\Composer\Plugin\ComposerConverter\Extension;
 
+use Symfony\Component\Finder\Finder;
+use Symfony\Component\Yaml\Yaml;
+
+/**
+ * Given a place to search, find all the Drupal extensions in the filesystem.
+ */
 class ExtensionCollection {
 
   /**
@@ -18,17 +24,49 @@ class ExtensionCollection {
    */
   protected $projectExtensions;
 
-  protected $exoticExtensions;
+  /**
+   * Arrays of extensions keyed by project name.
+   *
+   * @var \Drupal\Composer\Plugin\ComposerConverter\Extension\Extension[][]
+   */
+  protected $exoticExtensions = NULL;
 
+  /**
+   *
+   * @param string $root_directory
+   *   Full path to the root directory where we start searching.
+   * @param \Iterator $extension_iterator
+   *   (optional) An iterator which supplies \SplFileInfo objects for *.info.yml
+   *   files. Defaults to using the iterator supplied by static::findInfoFiles().
+   *
+   * @return \static
+   *   An extension collection object.
+   */
   public static function create($root_directory, \Iterator $extension_iterator = NULL) {
     if ($extension_iterator === NULL) {
       $extension_iterator = static::findInfoFiles($root_directory);
     }
-    return new static($extension_iterator);
+    $extensions = [];
+    /* @var $file \SplFileInfo */
+    foreach ($extension_iterator as $file) {
+      $e = new Extension($file);
+      $extensions[$e->getMachineName()] = $e;
+    }
+    return new static($extensions);
   }
 
-  public function __construct(Extension ...$extensions) {
+  /**
+   * Constructs an extension collection object.
+   *
+   * @param \Drupal\Composer\Plugin\ComposerConverter\Extension\Extension[] $extensions
+   *   An array of extension objects, keyed by their machine name.
+   */
+  public function __construct($extensions) {
     $this->extensions = $extensions;
+  }
+
+  public function getExtensions() {
+    return $this->extensions;
   }
 
   /**
@@ -76,17 +114,32 @@ class ExtensionCollection {
   }
 
   /**
+   * Get all the extensions which do not have an associated project.
+   *
+   * @return \Drupal\Composer\Plugin\ComposerConverter\Extension\Extension[]
+   *   An array of extensions with no project field. Array key is extension machine
+   *   name.
+   */
+  public function getExoticExtensions() {
+    if ($this->exoticExtensions === NULL) {
+      $this->sortProjectExtensions();
+    }
+    return $this->exoticExtensions;
+  }
+
+  /**
    * Sort extensions into projects.
    */
   protected function sortProjectExtensions() {
     $this->projectExtensions = [];
+    $this->exoticExtensions = [];
     /* @var $extension \Drupal\Composer\Plugin\ComposerConverter\Extension\Extension */
-    foreach($this->extensions as $machine_name => $extension) {
+    foreach ($this->extensions as $machine_name => $extension) {
       if ($project_name = $extension->getProject()) {
         $this->projectExtensions[$project_name][] = $extension;
       }
       else {
-        $this->exoticExtensions[] = $extension;
+        $this->exoticExtensions[$extension->getMachineName()] = $extension;
       }
     }
   }

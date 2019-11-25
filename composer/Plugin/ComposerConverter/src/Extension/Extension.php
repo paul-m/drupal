@@ -48,7 +48,7 @@ class Extension {
     return $this->machineName;
   }
 
-  public function getProject($default = '__unknown_project') {
+  public function getProject($default = NULL) {
     return $this->getInfo('project', $default);
   }
 

@@ -2,9 +2,9 @@
 
 namespace Drupal\Composer\Plugin\ComposerConverter;
 
+use Drupal\Composer\Plugin\ComposerConverter\Extension\ExtensionCollection;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
-use Drupal\Composer\Plugin\ComposerConverter\Extension\Extension;
 
 /**
  * Scans the file system, tells you which extensions are not accounted for.
@@ -47,6 +47,12 @@ class ExtensionReconciler {
   protected $preferProjects;
 
   /**
+   *
+   * @var \Drupal\Composer\Plugin\ComposerConverter\Extension\ExtensionCollection
+   */
+  protected $extensionCollection;
+
+  /**
    * Construct a reconciler.
    *
    * @param \Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility $from_utility
@@ -64,6 +70,7 @@ class ExtensionReconciler {
     }
     $this->workingDir = $working_dir;
     $this->preferProjects = $prefer_projects;
+    $this->extensionCollection = ExtensionCollection::create($working_dir);
   }
 
   /**
@@ -121,7 +128,7 @@ class ExtensionReconciler {
    * These could be path repos or other stuff we can't figure out.
    *
    * @return string[]
-   *   Array of extension machine names we discovered, keyed by machine name.
+   *   Array of extension human-readable names we discovered, keyed by machine name.
    */
   public function getExoticPackages() {
     if ($this->exoticSetupExtensions === NULL) {
@@ -136,15 +143,17 @@ class ExtensionReconciler {
   protected function processPackages() {
     // Find all the extensions in the file system, sorted by D.O project name.
     $this->projects = [];
+    $this->exoticSetupExtensions = [];
     // This is our pre-parsed database of info about all the extensions. Keyed by
     // machine name.
     $extension_objects = [];
-    /* @var $file \SplFileInfo */
-    foreach ($this->findInfoFiles($this->workingDir) as $file) {
-      $e = new Extension($file);
-      $extension_name = $e->getMachineName();
-      $extension_objects[$extension_name] = $e;
-      $this->projects[$e->getProject('__unknown_project')][$extension_name] = $extension_name;
+
+    foreach ($this->extensionCollection->getProjectNames() as $project_name) {
+      $extensions = $this->extensionCollection->getExtensionsForProject($project_name);
+      foreach($extensions as $extension) {
+        $machine_name = $extension->getMachineName();
+        $this->projects[$project_name][$machine_name] = $machine_name;
+      }
     }
 
     // Reconcile extensions against require and require-dev.
@@ -157,6 +166,7 @@ class ExtensionReconciler {
 
     // Make a list of extension/project names from our package names.
     $required_ext_or_proj_names = [];
+
     foreach (array_keys($require) as $package) {
       $boom_package = explode('/', $package);
       $extension_or_project_name = $boom_package[1];
@@ -174,12 +184,8 @@ class ExtensionReconciler {
     // Handle exotic extensions which don't have a project name. These could
     // need a special repo or to not be required at all, so we just punt on
     // them.
-    $this->exoticSetupExtensions = [];
-    if (isset($this->projects['__unknown_project'])) {
-      foreach ($this->projects['__unknown_project'] as $extension) {
-        $this->exoticSetupExtensions[$extension] = $extension_objects[$extension]->getName();
-      }
-      unset($this->projects['__unknown_project']);
+    foreach ($this->extensionCollection->getExoticExtensions() as $machine_name => $extension) {
+      $this->exoticSetupExtensions[$machine_name] = $extension->getName();
     }
 
     // D.O's Composer facade allows you to require an extension by extension

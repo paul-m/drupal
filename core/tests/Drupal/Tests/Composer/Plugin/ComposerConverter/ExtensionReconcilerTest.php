@@ -55,8 +55,8 @@ class ExtensionReconcilerTest extends TestCase {
       ->willReturn($require);
 
     $reconiler = $this->getMockBuilder(ExtensionReconciler::class)
-      // Make sure we don't run processNeededPackages().
-      ->setMethods(['processNeededPackages'])
+      // Make sure we don't run processPackages().
+      ->setMethods(['processPackages'])
       ->setConstructorArgs([$from, ''])
       ->getMock();
 
@@ -129,20 +129,8 @@ class ExtensionReconcilerTest extends TestCase {
     // Virtual file system for our working dir.
     vfsStream::setup('working_dir', NULL, $working_dir_filesystem);
 
-    // Create a reconciler.
-    $reconiler = $this->getMockBuilder(ExtensionReconciler::class)
-      ->setConstructorArgs([$from, vfsStream::url('working_dir')])
-      ->getMock();
-
-    $ref_process = new \ReflectionMethod($reconiler, 'processNeededPackages');
-    $ref_process->setAccessible(TRUE);
-
-    $ref_process->invokeArgs($reconiler, [FALSE]);
-
-    $ref_exotic = new \ReflectionProperty($reconiler, 'exoticSetupExtensions');
-    $ref_exotic->setAccessible(TRUE);
-
-    $this->assertSame($expected, $ref_exotic->getValue($reconiler));
+    $reconciler = new ExtensionReconciler($from, vfsStream::url('working_dir'));
+    $this->assertSame($expected, $reconciler->getExoticPackages());
   }
 
   public function provideNeededPackagesUnreconciled() {
@@ -242,7 +230,7 @@ class ExtensionReconcilerTest extends TestCase {
       ->setConstructorArgs([$from, vfsStream::url('working_dir'), $prefer_projects])
       ->getMock();
 
-    $ref_process = new \ReflectionMethod($reconiler, 'processNeededPackages');
+    $ref_process = new \ReflectionMethod($reconiler, 'processPackages');
     $ref_process->setAccessible(TRUE);
 
     $ref_process->invokeArgs($reconiler, [FALSE]);
