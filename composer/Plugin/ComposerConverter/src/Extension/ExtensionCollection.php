@@ -65,6 +65,12 @@ class ExtensionCollection {
     $this->extensions = $extensions;
   }
 
+  /**
+   * Get all the discovered extensions.
+   *
+   * @return \Drupal\Composer\Plugin\ComposerConverter\Extension\Extension[]
+   *   Array of all the discovered extensions, keyed by their machine name.
+   */
   public function getExtensions() {
     return $this->extensions;
   }

@@ -14,6 +14,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 class ExtensionReconcileCommand extends ConvertCommandBase {
 
@@ -120,6 +121,15 @@ EOT
         }
         file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
       }
+
+      $unreconciled = $reconciler->getAllUnreconciledExtensions();
+      $io->write(' - Removing these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($unreconciled)) . '</info>');
+      $remove_paths = [];
+      foreach ($unreconciled as $machine_name => $extension) {
+        $remove_paths[$machine_name] = dirname($extension->getInfoFile());
+      }
+      $fs = new Filesystem();
+      $fs->remove($remove_paths);
     }
 
     // Alert the user that they have unreconciled extensions.

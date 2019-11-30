@@ -31,22 +31,12 @@ class ComposerConverterTest extends BuildTestBase {
   }
 
   public function testUnreconciledExtensionNotifier() {
-    // Set up a finder so that we don't copy extension in someone's dev environment.
-    // @todo Change this once https://www.drupal.org/project/drupal/issues/3095809 is
-    //       in.
-    $finder = new Finder();
-    $finder->files()
-      ->ignoreUnreadableDirs()
-      ->in($this->getDrupalRoot())
-      ->notPath('#^sites/default/files#')
-      ->notPath('#^sites/simpletest#')
-      ->notPath('#^vendor#')
-      ->notPath('#^sites/default/settings\..*php#')
-      ->notPath('#^modules#')
+    // Set up a finder so that we don't copy extensions in someone's dev
+    // environment.
+    $finder = $this->getCodebaseFinder();
+    $finder->notPath('#^modules#')
       ->notPath('#^profiles#')
-      ->notPath('#^themes#')
-      ->ignoreDotFiles(FALSE)
-      ->ignoreVCS(FALSE);
+      ->notPath('#^themes#');
     $this->copyCodebase($finder->getIterator());
 
     $process = $this->executeCommand('composer install');

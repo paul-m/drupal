@@ -76,8 +76,6 @@ class ExtensionReconciler {
   /**
    * Get packages for extensions in filesystem, but not in composer.json.
    *
-   * @todo This only populates the packages per prefer-projects.
-   *
    * @return string[]
    *   Array of extension package names, such as drupal/ajax_example, keyed by
    *   the extension name, such as ajax_example.
@@ -87,6 +85,26 @@ class ExtensionReconciler {
       $this->processPackages();
     }
     return $this->needThesePackages;
+  }
+
+  /**
+   * Get all the extension objects that are unreconciled.
+   *
+   * @return \Drupal\Composer\Plugin\ComposerConverter\Extension\Extension[]
+   *   Array of Extension objects for each unreconciled extension.
+   */
+  public function getAllUnreconciledExtensions() {
+    $extension_objects = [];
+    if ($this->projects === NULL) {
+      $this->processPackages();
+    }
+    $extensions = $this->extensionCollection->getExtensions();
+    foreach ($this->projects as $project_name => $extension_names) {
+      foreach ($extension_names as $extension_name) {
+        $extension_objects[$extension_name] = $extensions[$extension_name];
+      }
+    }
+    return $extension_objects;
   }
 
   /**
