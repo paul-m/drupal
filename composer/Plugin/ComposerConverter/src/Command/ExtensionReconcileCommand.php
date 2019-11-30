@@ -38,12 +38,12 @@ class ExtensionReconcileCommand extends ConvertCommandBase {
         <<<EOT
 This command does the following things:
  * Determine if there are any extension on the file system which are not
-   represented in composer.json.
+   represented in the root composer.json.
  * Declare these extensions within composer.json so that you can use Composer
    to manage them.
  * Remove the existing extensions from the file system.
 EOT
-      );
+    );
   }
 
   /**
@@ -122,14 +122,15 @@ EOT
         file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
       }
 
-      $unreconciled = $reconciler->getAllUnreconciledExtensions();
-      $io->write(' - Removing these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($unreconciled)) . '</info>');
-      $remove_paths = [];
-      foreach ($unreconciled as $machine_name => $extension) {
-        $remove_paths[$machine_name] = dirname($extension->getInfoFile());
+      if (!$input->getOption('dry-run')) {
+        $unreconciled = $reconciler->getAllUnreconciledExtensions();
+        $io->write(' - Removing these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($unreconciled)) . '</info>');
+        $remove_paths = [];
+        foreach ($unreconciled as $machine_name => $extension) {
+          $remove_paths[$machine_name] = dirname($extension->getInfoFile());
+        }
+        (new Filesystem())->remove($remove_paths);
       }
-      $fs = new Filesystem();
-      $fs->remove($remove_paths);
     }
 
     // Alert the user that they have unreconciled extensions.
