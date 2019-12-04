@@ -2,7 +2,7 @@
 
 namespace Drupal\Composer\Plugin\ComposerConverter;
 
-use Drupal\Composer\Plugin\ComposerConverter\Extension\ExtensionCollection;
+use Drupal\Composer\Plugin\ComposerConverter\Extension\ExtensionRepository;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
 
@@ -48,9 +48,9 @@ class ExtensionReconciler {
 
   /**
    *
-   * @var \Drupal\Composer\Plugin\ComposerConverter\Extension\ExtensionCollection
+   * @var \Drupal\Composer\Plugin\ComposerConverter\Extension\ExtensionRepository
    */
-  protected $extensionCollection;
+  protected $extensionRepository;
 
   /**
    * Construct a reconciler.
@@ -70,7 +70,7 @@ class ExtensionReconciler {
     }
     $this->workingDir = $working_dir;
     $this->preferProjects = $prefer_projects;
-    $this->extensionCollection = ExtensionCollection::create($working_dir);
+    $this->extensionRepository = ExtensionRepository::create($working_dir);
   }
 
   /**
@@ -98,7 +98,7 @@ class ExtensionReconciler {
     if ($this->projects === NULL) {
       $this->processPackages();
     }
-    $extensions = $this->extensionCollection->getExtensions();
+    $extensions = $this->extensionRepository->getExtensions();
     foreach ($this->projects as $project_name => $extension_names) {
       foreach ($extension_names as $extension_name) {
         $extension_objects[$extension_name] = $extensions[$extension_name];
@@ -166,8 +166,8 @@ class ExtensionReconciler {
     // machine name.
     $extension_objects = [];
 
-    foreach ($this->extensionCollection->getProjectNames() as $project_name) {
-      $extensions = $this->extensionCollection->getExtensionsForProject($project_name);
+    foreach ($this->extensionRepository->getProjectNames() as $project_name) {
+      $extensions = $this->extensionRepository->getExtensionsForProject($project_name);
       foreach($extensions as $extension) {
         $machine_name = $extension->getMachineName();
         $this->projects[$project_name][$machine_name] = $machine_name;
@@ -202,7 +202,7 @@ class ExtensionReconciler {
     // Handle exotic extensions which don't have a project name. These could
     // need a special repo or to not be required at all, so we just punt on
     // them.
-    foreach ($this->extensionCollection->getExoticExtensions() as $machine_name => $extension) {
+    foreach ($this->extensionRepository->getExoticExtensions() as $machine_name => $extension) {
       $this->exoticSetupExtensions[$machine_name] = $extension->getName();
     }
 

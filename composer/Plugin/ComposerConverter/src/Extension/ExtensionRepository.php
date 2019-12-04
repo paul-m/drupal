@@ -8,7 +8,7 @@ use Symfony\Component\Yaml\Yaml;
 /**
  * Given a place to search, find all the Drupal extensions in the filesystem.
  */
-class ExtensionCollection {
+class ExtensionRepository {
 
   /**
    * All the extensions keyed by their machine name.

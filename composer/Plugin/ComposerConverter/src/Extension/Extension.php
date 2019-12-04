@@ -40,24 +40,8 @@ class Extension {
     return $this->infoFile;
   }
 
-  public function getName() {
-    return $this->getInfo('name', $this->machineName);
-  }
-
   public function getMachineName() {
     return $this->machineName;
-  }
-
-  public function getProject($default = NULL) {
-    return $this->getInfo('project', $default);
-  }
-
-  public function getVersion() {
-    return $this->getInfo('version');
-  }
-
-  public function getSemanticVersion() {
-    return DrupalInspector::getSemanticVersion($this->getVersion());
   }
 
   protected function getParsedInfo() {
@@ -70,6 +54,22 @@ class Extension {
   protected function getInfo($key, $default = NULL) {
     $info = $this->getParsedInfo();
     return $info[$key] ?? $default;
+  }
+
+  public function getName() {
+    return $this->getInfo('name', $this->machineName);
+  }
+
+  public function getProject($default = NULL) {
+    return $this->getInfo('project', $default);
+  }
+
+  public function getVersion() {
+    return $this->getInfo('version');
+  }
+
+  public function getSemanticVersion() {
+    return DrupalInspector::getSemanticVersion($this->getVersion());
   }
 
 }

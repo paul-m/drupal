@@ -58,7 +58,7 @@ advisable to work on a backup installation, or to use git or other VCS so
 you can undo the changes here. Never perform this operation on a production
 site.
 EOT
-      );
+    );
   }
 
   /**
@@ -71,9 +71,9 @@ EOT
       'Add stuff to this list.',
     ];
     $style->listing($item_list);
-    if (!$input->getOption('no-interaction')) {
-      $helper = $this->getHelper('question');
-      $this->userCanceled = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', FALSE));
+    $helper = $this->getHelper('question');
+    if (!$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', FALSE))) {
+      throw new \RuntimeException('User cancelled.', 1);
     }
   }
 
@@ -81,9 +81,6 @@ EOT
    * {@inheritdoc}
    */
   protected function execute(InputInterface $input, OutputInterface $output) {
-    if ($this->userCanceled) {
-      return;
-    }
     $io = $this->getIO();
 
     $working_dir = realpath($input->getOption('working-dir'));
@@ -128,7 +125,6 @@ EOT
 
     // @todo: Configure drupal/core-composer-scaffold based on
     //        drupal-composer/drupal-scaffold config.',
-
     // Gather existing extension dependencies from the old composer.json file.
     $io->write(' - Moving existing Drupal extensions to new composer.json file...');
     $reconciler = new ExtensionReconciler($backup_utility, $working_dir);

@@ -18,8 +18,12 @@ use Symfony\Component\Filesystem\Filesystem;
 
 class ExtensionReconcileCommand extends ConvertCommandBase {
 
+  /**
+   * The composer.json file for this project.
+   *
+   * @var string
+   */
   private $rootComposerJsonPath;
-  protected $userCanceled = FALSE;
 
   /**
    * {@inheritdoc}
@@ -59,9 +63,9 @@ EOT
         'Remove the existing extensions from the file system.',
       ];
       $style->listing($item_list);
-      if (!$input->getOption('no-interaction')) {
-        $helper = $this->getHelper('question');
-        $this->userCanceled = !$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', FALSE));
+      $helper = $this->getHelper('question');
+      if (!$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', FALSE))) {
+        throw new \RuntimeException('User cancelled.', 1);
       }
     }
   }
@@ -70,16 +74,14 @@ EOT
    * {@inheritdoc}
    */
   protected function execute(InputInterface $input, OutputInterface $output) {
-    if ($this->userCanceled) {
-      return;
-    }
     $io = $this->getIO();
-
+    $dry_run = $input->getOption('dry-run');
     $working_dir = realpath($input->getOption('working-dir'));
+
     $this->rootComposerJsonPath = $working_dir . '/composer.json';
 
     // Make a reconciler for our root composer.json.
-    $io->write(' - Scanning the filesystem for extensions not in the composer.json file...');
+    $io->write(' - Scanning the file system for extensions not in the composer.json file...');
     $reconciler = new ExtensionReconciler(
       new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)),
       $working_dir,
@@ -95,7 +97,7 @@ EOT
       // changes in our root composer.json.
       $composer = Factory::create($io, $this->rootComposerJsonPath);
 
-      // Populate $this->repos so that InitCommand can use it.
+      // Populate $this->repos so that our superclass can use it.
       $this->repos = new CompositeRepository(array_merge(
           [new PlatformRepository([], $composer->getConfig()->get('platform') ?: [])],
           $composer->getRepositoryManager()->getRepositories()
@@ -111,29 +113,37 @@ EOT
       $php_version = $this->repos->findPackage('php', '*')->getPrettyVersion();
 
       // Do some constraint resolution.
-      $requirements = $this->determineRequirements($input, $output, $add_packages, $php_version, $preferred_stability);
-      if ($requirements) {
-        // Add our new dependencies.
-        $manipulator = new JsonManipulator(file_get_contents($this->rootComposerJsonPath));
-        $sort_packages = $input->getOption('sort-packages') || (new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)))->getSortPackages();
-        foreach ($this->formatRequirements($requirements) as $package => $constraint) {
-          $manipulator->addLink('require', $package, $constraint, $sort_packages);
+      if ($requirements = $this->determineRequirements($input, $output, $add_packages, $php_version, $preferred_stability)) {
+        if ($dry_run) {
+          $io->write(' - (Dry run) Add these packages: <info>' . implode('</info>, <info>', $requirements) . '</info>');
         }
-        file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
+        else {
+          // Add our new dependencies.
+          $manipulator = new JsonManipulator(file_get_contents($this->rootComposerJsonPath));
+          $sort_packages = $input->getOption('sort-packages') || (new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)))->getSortPackages();
+          foreach ($this->formatRequirements($requirements) as $package => $constraint) {
+            $manipulator->addLink('require', $package, $constraint, $sort_packages);
+          }
+          file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
+        }
       }
 
-      if (!$input->getOption('dry-run')) {
-        $unreconciled = $reconciler->getAllUnreconciledExtensions();
-        $io->write(' - Removing these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($unreconciled)) . '</info>');
-        $remove_paths = [];
-        foreach ($unreconciled as $machine_name => $extension) {
-          $remove_paths[] = dirname($extension->getInfoFile());
+      if ($unreconciled = $reconciler->getAllUnreconciledExtensions()) {
+        if ($dry_run) {
+          $io->write(' - (Dry run) Remove these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($unreconciled)) . '</info>');
         }
-        (new Filesystem())->remove($remove_paths);
+        else {
+          $io->write(' - Removing these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($unreconciled)) . '</info>');
+          $remove_paths = [];
+          foreach ($unreconciled as $machine_name => $extension) {
+            $remove_paths[] = dirname($extension->getInfoFile());
+          }
+          (new Filesystem())->remove($remove_paths);
+        }
       }
     }
 
-    // Alert the user that they have unreconciled extensions.
+    // Alert the user that they have 'exotic' unreconciled extensions.
     if ($exotic = $reconciler->getExoticPackages()) {
       $style = new SymfonyStyle($input, $output);
       $io->write(' - Discovered extensions which are not in the original composer.json, and which do not have drupal.org projects. These extensions will need to be added manually if you wish to manage them through Composer:');
