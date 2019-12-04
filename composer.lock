@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b8c290f2b20986b83d78d5b5ab2e296f",
+    "content-hash": "c6c500e6567b37ef3e100b285ab9910c",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -880,31 +880,6 @@
             "description": "Drupal is an open source content management platform powering millions of websites and applications."
         },
         {
-            "name": "drupal/core-composer-converter",
-            "version": "8.9.x-dev",
-            "dist": {
-                "type": "path",
-                "url": "composer/Plugin/ComposerConverter",
-                "reference": "c99189201a7ad4829d1e25348c9e555b39740c87"
-            },
-            "require": {
-                "composer-plugin-api": "^1.0.0",
-                "php": ">=5.6",
-                "symfony/finder": "^3.4",
-                "symfony/yaml": "^3.4"
-            },
-            "type": "composer-plugin",
-            "extra": {
-                "class": "Drupal\\Composer\\Plugin\\ComposerConverter\\ConverterPlugin"
-            },
-            "autoload": {
-                "psr-4": {
-                    "Drupal\\Composer\\Plugin\\ComposerConverter\\": "src"
-                }
-            },
-            "description": "Get the Composer status for this Drupal project."
-        },
-        {
             "name": "drupal/core-project-message",
             "version": "8.9.x-dev",
             "dist": {
@@ -929,6 +904,36 @@
                 "GPL-2.0-or-later"
             ],
             "description": "Adds a message after Composer installation.",
+            "homepage": "https://www.drupal.org/project/drupal",
+            "keywords": [
+                "drupal"
+            ]
+        },
+        {
+            "name": "drupal/core-vendor-hardening",
+            "version": "8.9.x-dev",
+            "dist": {
+                "type": "path",
+                "url": "composer/Plugin/VendorHardening",
+                "reference": "2db54f089065dedbe4a040b01f7b527f2bad68f6"
+            },
+            "require": {
+                "composer-plugin-api": "^1.1",
+                "php": ">=7.0.8"
+            },
+            "type": "composer-plugin",
+            "extra": {
+                "class": "Drupal\\Composer\\Plugin\\VendorHardening\\VendorHardeningPlugin"
+            },
+            "autoload": {
+                "psr-4": {
+                    "Drupal\\Composer\\Plugin\\VendorHardening\\": "."
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Hardens the vendor directory for when it's in the docroot.",
             "homepage": "https://www.drupal.org/project/drupal",
             "keywords": [
                 "drupal"
@@ -2174,55 +2179,6 @@
             "description": "Symfony EventDispatcher Component",
             "homepage": "https://symfony.com",
             "time": "2019-10-24T15:33:53+00:00"
-        },
-        {
-            "name": "symfony/finder",
-            "version": "v3.4.33",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/symfony/finder.git",
-                "reference": "3e915e5ce305f8bc8017597f71f1f4095092ddf8"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/symfony/finder/zipball/3e915e5ce305f8bc8017597f71f1f4095092ddf8",
-                "reference": "3e915e5ce305f8bc8017597f71f1f4095092ddf8",
-                "shasum": ""
-            },
-            "require": {
-                "php": "^5.5.9|>=7.0.8"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-master": "3.4-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Symfony\\Component\\Finder\\": ""
-                },
-                "exclude-from-classmap": [
-                    "/Tests/"
-                ]
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Fabien Potencier",
-                    "email": "fabien@symfony.com"
-                },
-                {
-                    "name": "Symfony Community",
-                    "homepage": "https://symfony.com/contributors"
-                }
-            ],
-            "description": "Symfony Finder Component",
-            "homepage": "https://symfony.com",
-            "time": "2019-10-30T12:43:22+00:00"
         },
         {
             "name": "symfony/http-foundation",
@@ -4137,6 +4093,31 @@
                 "standards"
             ],
             "time": "2019-08-09T09:27:26+00:00"
+        },
+        {
+            "name": "drupal/core-composer-converter",
+            "version": "8.9.x-dev",
+            "dist": {
+                "type": "path",
+                "url": "composer/Plugin/ComposerConverter",
+                "reference": "c99189201a7ad4829d1e25348c9e555b39740c87"
+            },
+            "require": {
+                "composer-plugin-api": "^1.0.0",
+                "php": ">=5.6",
+                "symfony/finder": "^3.4",
+                "symfony/yaml": "^3.4"
+            },
+            "type": "composer-plugin",
+            "extra": {
+                "class": "Drupal\\Composer\\Plugin\\ComposerConverter\\ConverterPlugin"
+            },
+            "autoload": {
+                "psr-4": {
+                    "Drupal\\Composer\\Plugin\\ComposerConverter\\": "src"
+                }
+            },
+            "description": "Get the Composer status for this Drupal project."
         },
         {
             "name": "fabpot/goutte",
@@ -6153,6 +6134,55 @@
             "time": "2019-08-20T13:31:17+00:00"
         },
         {
+            "name": "symfony/finder",
+            "version": "v3.4.33",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/finder.git",
+                "reference": "3e915e5ce305f8bc8017597f71f1f4095092ddf8"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/finder/zipball/3e915e5ce305f8bc8017597f71f1f4095092ddf8",
+                "reference": "3e915e5ce305f8bc8017597f71f1f4095092ddf8",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^5.5.9|>=7.0.8"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "3.4-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Symfony\\Component\\Finder\\": ""
+                },
+                "exclude-from-classmap": [
+                    "/Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Fabien Potencier",
+                    "email": "fabien@symfony.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Symfony Finder Component",
+            "homepage": "https://symfony.com",
+            "time": "2019-10-30T12:43:22+00:00"
+        },
+        {
             "name": "symfony/lock",
             "version": "v3.4.35",
             "source": {
@@ -6375,7 +6405,7 @@
     "stability-flags": {
         "drupal/core": 20,
         "drupal/core-project-message": 20,
-        "drupal/core-composer-converter": 20,
+        "drupal/core-vendor-hardening": 20,
         "behat/mink": 20,
         "behat/mink-selenium2-driver": 20
     },

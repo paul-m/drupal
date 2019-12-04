@@ -39,7 +39,6 @@
         "symfony/debug": "v3.4.35",
         "symfony/dependency-injection": "v3.4.35",
         "symfony/event-dispatcher": "v3.4.35",
-        "symfony/finder": "v3.4.33",
         "symfony/http-foundation": "v3.4.35",
         "symfony/http-kernel": "v3.4.35",
         "symfony/polyfill-ctype": "v1.12.0",
