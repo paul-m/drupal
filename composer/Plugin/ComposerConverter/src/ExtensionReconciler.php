@@ -168,7 +168,7 @@ class ExtensionReconciler {
 
     foreach ($this->extensionRepository->getProjectNames() as $project_name) {
       $extensions = $this->extensionRepository->getExtensionsForProject($project_name);
-      foreach($extensions as $extension) {
+      foreach ($extensions as $extension) {
         $machine_name = $extension->getMachineName();
         $this->projects[$project_name][$machine_name] = $machine_name;
       }

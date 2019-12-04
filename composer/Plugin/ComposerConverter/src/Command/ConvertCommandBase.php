@@ -10,7 +10,6 @@ use Composer\Repository\CompositeRepository;
 use Composer\Repository\PlatformRepository;
 use Composer\Repository\RepositoryFactory;
 use Composer\Util\ProcessExecutor;
-use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Process\ExecutableFinder;
@@ -23,15 +22,18 @@ use Composer\Command\BaseCommand;
 class ConvertCommandBase extends BaseCommand {
 
   /**
- * @var \Composer\Repository\CompositeRepository */
+   * @var \Composer\Repository\CompositeRepository
+   */
   protected $repos;
 
   /**
- * @var array */
+   * @var array
+   */
   private $gitConfig;
 
   /**
- * @var \Composer\DependencyResolver\Pool[] */
+   * @var \Composer\DependencyResolver\Pool[]
+   */
   private $pools;
   private $isSubCommand = FALSE;
 
@@ -467,23 +469,6 @@ class ConvertCommandBase extends BaseCommand {
     asort($similarPackages);
 
     return array_keys(array_slice($similarPackages, 0, 5));
-  }
-
-  private function installDependencies($output) {
-    try {
-      $installCommand = $this->getApplication()->find('install');
-      $installCommand->run(new ArrayInput([]), $output);
-    }
-    catch (\Exception $e) {
-      $this->getIO()->writeError('Could not install dependencies. Run `composer install` to see more information.');
-    }
-  }
-
-  private function hasDependencies($options) {
-    $requires = (array) $options['require'];
-    $devRequires = isset($options['require-dev']) ? (array) $options['require-dev'] : [];
-
-    return !empty($requires) || !empty($devRequires);
   }
 
 }
