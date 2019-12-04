@@ -53,13 +53,13 @@ class ComposerConverterTest extends BuildTestBase {
       dirname($unreconciled_module_info_path),
     ]);
 
-    file_put_contents($exotic_module_info_path, "name: Test Exotic Module");
+    file_put_contents($exotic_module_info_path, "name: Test Exotic Module\ntype: module");
     $process = $this->executeCommand('composer install');
     $this->assertCommandSuccessful();
     $this->assertContains('This project has extensions on the file system which might require manual updating', $process->getOutput());
     $this->assertNotContains('This project has extensions on the file system which are not reflected in the composer.json file', $process->getOutput());
 
-    file_put_contents($unreconciled_module_info_path, "name: Test Module\nproject: Other");
+    file_put_contents($unreconciled_module_info_path, "name: Test Module\nproject: Other\ntype: module");
     $process = $this->executeCommand('composer install');
     $this->assertCommandSuccessful();
     $this->assertContains('This project has extensions on the file system which might require manual updating', $process->getOutput());

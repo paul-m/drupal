@@ -81,7 +81,7 @@ class ExtensionReconcilerTest extends TestCase {
           'core' => [],
           'modules' => [
             'foo' => [
-              'foo.info.yml' => 'name: Foo',
+              'foo.info.yml' => "name: Foo\ntype: module",
             ],
           ],
         ],
@@ -187,7 +187,7 @@ class ExtensionReconcilerTest extends TestCase {
           'core' => [],
           'modules' => [
             'foo' => [
-              'foo.info.yml' => "name: foo\nproject: foo_project",
+              'foo.info.yml' => "name: foo\nproject: foo_project\ntype: module",
             ],
           ],
         ],
@@ -200,7 +200,7 @@ class ExtensionReconcilerTest extends TestCase {
           'core' => [],
           'modules' => [
             'foo' => [
-              'foo.info.yml' => "name: foo\nproject: foo_project",
+              'foo.info.yml' => "name: foo\nproject: foo_project\ntype: module",
             ],
           ],
         ],
