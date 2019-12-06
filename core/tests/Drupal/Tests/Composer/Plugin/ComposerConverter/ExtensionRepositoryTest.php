@@ -23,14 +23,14 @@ class ExtensionRepositoryTest extends TestCase {
         'd7module.info' => 'name = D7-style info file',
       ],
       'd8module' => [
-        'd8module.info.yml' => 'name: D8-style info file',
+        'd8module.info.yml' => "name: D8-style info file\ntype: module",
       ],
     ]);
 
     $repo = ExtensionRepository::create(vfsStream::url('info_root'));
 
     $extensions = $repo->getExtensions();
-    error_log(print_r($extensions, true));
+
     $this->assertArrayHasKey('d7module', $extensions);
     $this->assertArrayHasKey('d8module', $extensions);
   }

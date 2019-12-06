@@ -47,8 +47,6 @@ class ExtensionRepository {
       $extension_iterator = new \AppendIterator();
       $extension_iterator->append(static::findInfoFiles($root_directory)->getIterator());
       $extension_iterator->append(static::findInfoYmlFiles($root_directory)->getIterator());
-//        (array) static::findInfoYmlFiles($root_directory)
-  //    );
     }
     $extensions = [];
     /* @var $file \SplFileInfo */
