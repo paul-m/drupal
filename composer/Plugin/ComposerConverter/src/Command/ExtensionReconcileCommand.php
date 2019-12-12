@@ -114,7 +114,7 @@ EOT
       $php_version = $this->repos->findPackage('php', '*')->getPrettyVersion();
 
       // Do some constraint resolution.
-      $requirements = [];
+      $requirements = NULL;
       if ($requirements = $this->determineRequirements($input, $output, $add_packages, $php_version, $preferred_stability)) {
         if ($dry_run) {
           $io->write(' - (Dry run) Add these packages: <info>' . implode('</info>, <info>', $requirements) . '</info>');
@@ -143,12 +143,14 @@ EOT
           (new Filesystem())->remove($remove_paths);
         }
       }
-      try {
-        return $this->doUpdate($input, $output, $io, $requirements);
-      }
-      catch (\Exception $e) {
-        //    $this->revertComposerFile(false);
-        throw $e;
+      if ($requirements && !$dry_run) {
+        try {
+          return $this->doUpdate($input, $output, $io, $requirements);
+        }
+        catch (\Exception $e) {
+          //    $this->revertComposerFile(false);
+          throw $e;
+        }
       }
     }
 
