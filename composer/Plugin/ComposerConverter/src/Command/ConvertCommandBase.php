@@ -69,6 +69,17 @@ class ConvertCommandBase extends BaseCommand {
     return $this->repos;
   }
 
+  /**
+   *
+   * @param InputInterface $input
+   * @param OutputInterface $output
+   * @param type $requires
+   * @param type $phpVersion
+   * @param type $preferredStability
+   * @param type $checkProvidedVersions
+   * @return string[]
+   *   Array of package names and constraints as a string.
+   */
   protected function determineRequirements(InputInterface $input, OutputInterface $output, $requires = [], $phpVersion = NULL, $preferredStability = 'stable', $checkProvidedVersions = TRUE) {
     if ($requires) {
       $requires = $this->normalizeRequirements($requires);

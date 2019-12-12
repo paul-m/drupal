@@ -149,19 +149,21 @@ EOT
         }
       }
 
-      if ($unreconciled = $reconciler->getAllUnreconciledExtensions()) {
-        if ($dry_run) {
-          $io->write(' - (Dry run) Remove these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($unreconciled)) . '</info>');
-        }
-        else {
-          $io->write(' - Removing these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($unreconciled)) . '</info>');
-          $remove_paths = [];
-          foreach ($unreconciled as $machine_name => $extension) {
-            $remove_paths[] = dirname($extension->getInfoFile());
-          }
-          (new Filesystem())->remove($remove_paths);
-        }
+      // Remove the existing extensions from the file system.
+      if ($dry_run) {
+        $io->write(' - (Dry run) Remove these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($add_packages)) . '</info>');
       }
+      else {
+        $io->write(' - Removing these extensions from the file system: <info>' . implode('</info>, <info>', array_keys($add_packages)) . '</info>');
+        $extensions = $reconciler->getAllUnreconciledExtensions();
+        $remove_paths = [];
+        foreach (array_keys($add_packages) as $machine_name) {
+          $remove_paths[] = dirname($extensions[$machine_name]->getInfoFile());
+        }
+        (new Filesystem())->remove($remove_paths);
+      }
+
+      // Perform the update.
       if ($requirements && (!$dry_run || !$input->getOption('no-update'))) {
         try {
           return $this->doUpdate($input, $output, $io, $requirements);
