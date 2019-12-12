@@ -9,6 +9,8 @@ use Composer\Repository\CompositeRepository;
 use Composer\Repository\PlatformRepository;
 use Composer\Installer;
 use Composer\IO\IOInterface;
+use Composer\Command\InitCommand;
+use Composer\Command\RequireCommand;
 use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
 use Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility;
 use Symfony\Component\Console\Input\InputInterface;
@@ -36,9 +38,25 @@ class ExtensionReconcileCommand extends ConvertCommandBase {
       ->setDescription('Declare your extensions in composer.json.')
       ->setDefinition([
         new InputOption('dry-run', NULL, InputOption::VALUE_NONE, 'Display all the changes that would occur, without performing them.'),
-        new InputOption('no-update', NULL, InputOption::VALUE_NONE, 'Perform conversion but does not perform update.'),
-        new InputOption('sort-packages', NULL, InputOption::VALUE_NONE, 'Sorts packages when adding/updating a new dependency'),
         new InputOption('prefer-projects', NULL, InputOption::VALUE_NONE, 'When possible, use d.o project name instead of extension name.'),
+        // Options from Composer\Command\RequireCommand.
+        new InputOption('dev', null, InputOption::VALUE_NONE, 'Add requirement to require-dev.'), //?
+        new InputOption('prefer-source', null, InputOption::VALUE_NONE, 'Forces installation from package sources when possible, including VCS information.'),
+        new InputOption('prefer-dist', null, InputOption::VALUE_NONE, 'Forces installation from package dist even for dev versions.'),
+        new InputOption('no-progress', null, InputOption::VALUE_NONE, 'Do not output download progress.'),
+        new InputOption('no-suggest', null, InputOption::VALUE_NONE, 'Do not show package suggestions.'),
+        new InputOption('no-update', null, InputOption::VALUE_NONE, 'Disables the automatic update of the dependencies.'),
+        new InputOption('no-scripts', null, InputOption::VALUE_NONE, 'Skips the execution of all scripts defined in composer.json file.'),
+        new InputOption('update-no-dev', null, InputOption::VALUE_NONE, 'Run the dependency update with the --no-dev option.'),
+        new InputOption('update-with-dependencies', null, InputOption::VALUE_NONE, 'Allows inherited dependencies to be updated, except those that are root requirements.'),
+        new InputOption('update-with-all-dependencies', null, InputOption::VALUE_NONE, 'Allows all inherited dependencies to be updated, including those that are root requirements.'),
+        new InputOption('ignore-platform-reqs', null, InputOption::VALUE_NONE, 'Ignore platform requirements (php & ext- packages).'),
+        new InputOption('prefer-stable', null, InputOption::VALUE_NONE, 'Prefer stable versions of dependencies.'),
+        new InputOption('prefer-lowest', null, InputOption::VALUE_NONE, 'Prefer lowest versions of dependencies.'),
+        new InputOption('sort-packages', null, InputOption::VALUE_NONE, 'Sorts packages when adding/updating a new dependency'),
+        new InputOption('optimize-autoloader', 'o', InputOption::VALUE_NONE, 'Optimize autoloader during autoloader dump'),
+        new InputOption('classmap-authoritative', 'a', InputOption::VALUE_NONE, 'Autoload classes from the classmap only. Implicitly enables `--optimize-autoloader`.'),
+        new InputOption('apcu-autoloader', null, InputOption::VALUE_NONE, 'Use APCu to cache found/not-found classes.'),
       ])
       ->setHelp(
         <<<EOT
@@ -144,7 +162,7 @@ EOT
           (new Filesystem())->remove($remove_paths);
         }
       }
-      if ($requirements && !$dry_run) {
+      if ($requirements && (!$dry_run || !$input->getOption('no-update'))) {
         try {
           return $this->doUpdate($input, $output, $io, $requirements);
         }
@@ -180,19 +198,14 @@ EOT
     // Update packages
     $this->resetComposer();
     $composer = $this->getComposer(TRUE, $input->getOption('no-plugins'));
-//    $composer->getDownloadManager()->setOutputProgress(!$input->getOption('no-progress'));
-
-//    $updateDevMode = !$input->getOption('update-no-dev');
-//    $optimize = $input->getOption('optimize-autoloader') || $composer->getConfig()->get('optimize-autoloader');
-//    $authoritative = $input->getOption('classmap-authoritative') || $composer->getConfig()->get('classmap-authoritative');
-//    $apcu = $input->getOption('apcu-autoloader') || $composer->getConfig()->get('apcu-autoloader');
-
-    //    $commandEvent = new CommandEvent(PluginEvents::COMMAND, 'require', $input, $output);
-    //  $composer->getEventDispatcher()->dispatch($commandEvent->getName(), $commandEvent);
+    $composer->getDownloadManager()->setOutputProgress(!$input->getOption('no-progress'));
+    $updateDevMode = !$input->getOption('update-no-dev');
+    $optimize = $input->getOption('optimize-autoloader') || $composer->getConfig()->get('optimize-autoloader');
+    $authoritative = $input->getOption('classmap-authoritative') || $composer->getConfig()->get('classmap-authoritative');
+    $apcu = $input->getOption('apcu-autoloader') || $composer->getConfig()->get('apcu-autoloader');
 
     $install = Installer::create($io, $composer);
-
-/*    $install
+    $install
       ->setVerbose($input->getOption('verbose'))
       ->setPreferSource($input->getOption('prefer-source'))
       ->setPreferDist($input->getOption('prefer-dist'))
@@ -209,7 +222,7 @@ EOT
       ->setIgnorePlatformRequirements($input->getOption('ignore-platform-reqs'))
       ->setPreferStable($input->getOption('prefer-stable'))
       ->setPreferLowest($input->getOption('prefer-lowest'));
-*/
+
     $status = $install->run();
     if ($status !== 0) {
 //      $this->revertComposerFile(FALSE);
