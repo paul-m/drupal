@@ -32,12 +32,13 @@ class ExtensionRepository {
   protected $exoticExtensions = NULL;
 
   /**
+   * Factory method for a ExtensionRepository object.
    *
    * @param string $root_directory
    *   Full path to the root directory where we start searching.
    * @param \Iterator $extension_iterator
    *   (optional) An iterator which supplies \SplFileInfo objects for *.info.yml
-   *   files. Defaults to using the iterator supplied by static::findInfoFiles().
+   *   files. Defaults to using the iterator supplied by static::findInfo*Files().
    *
    * @return \static
    *   An extension collection object.
@@ -232,7 +233,7 @@ class ExtensionRepository {
    *   Parsed keys and values.
    */
   public static function drupalParseInfoFormat($data) {
-    $info = array();
+    $info = [];
     if (preg_match_all('
     @^\\s*                           # Start at the beginning of a line, ignoring leading whitespace
     ((?:
@@ -250,12 +251,12 @@ class ExtensionRepository {
 
         // Fetch the key and value string.
         $i = 0;
-        foreach (array(
+        foreach ([
         'key',
         'value1',
         'value2',
         'value3',
-        ) as $var) {
+        ] as $var) {
           ${$var} = isset($match[++$i]) ? $match[$i] : '';
         }
         $value = stripslashes(substr($value1, 1, -1)) . stripslashes(substr($value2, 1, -1)) . $value3;
@@ -271,7 +272,7 @@ class ExtensionRepository {
             $key = count($parent);
           }
           if (!isset($parent[$key]) || !is_array($parent[$key])) {
-            $parent[$key] = array();
+            $parent[$key] = [];
           }
           $parent = & $parent[$key];
         }
