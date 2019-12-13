@@ -24,7 +24,7 @@ class ComposerConverterTest extends BuildTestBase {
     $this->executeCommand('composer install');
     $this->assertCommandSuccessful();
 
-    $this->executeCommand('composer drupal-legacy-convert --no-interaction');
+    $this->executeCommand('composer drupal:legacy-convert --no-interaction');
     $this->assertCommandSuccessful();
 
     $this->assertContains('drupal/converted-project', file_get_contents($this->getWorkspaceDirectory() . '/composer.json'));

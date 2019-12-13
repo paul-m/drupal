@@ -33,27 +33,6 @@ class ConvertCommandBase extends BaseCommand {
    */
   private $pools;
 
-  /**
-   * @private
-   * @param  string $author
-   * @return array
-   */
-  public function parseAuthorString($author) {
-    if (preg_match('/^(?P<name>[- .,\p{L}\p{N}\p{Mn}\'’"()]+) <(?P<email>.+?)>$/u', $author, $match)) {
-      if ($this->isValidEmail($match['email'])) {
-        return [
-          'name' => trim($match['name']),
-          'email' => $match['email'],
-        ];
-      }
-    }
-
-    throw new \InvalidArgumentException(
-      'Invalid author string.  Must be in the format: ' .
-      'John Smith <john@example.com>'
-    );
-  }
-
   protected function findPackages($name) {
     return $this->getRepos()->search($name);
   }
@@ -71,12 +50,12 @@ class ConvertCommandBase extends BaseCommand {
 
   /**
    *
-   * @param InputInterface $input
-   * @param OutputInterface $output
-   * @param type $requires
-   * @param type $phpVersion
-   * @param type $preferredStability
-   * @param type $checkProvidedVersions
+   * @param \Symfony\Component\Console\Input\InputInterface $input
+   * @param \Symfony\Component\Console\Output\OutputInterface $output
+   * @param mixed $requires
+   * @param mixed $phpVersion
+   * @param mixed $preferredStability
+   * @param mixed $checkProvidedVersions
    * @return string[]
    *   Array of package names and constraints as a string.
    */
@@ -239,20 +218,6 @@ class ConvertCommandBase extends BaseCommand {
     $parser = new VersionParser();
 
     return $parser->parseNameVersionPairs($requirements);
-  }
-
-  protected function isValidEmail($email) {
-    // assume it's valid if we can't validate it
-    if (!function_exists('filter_var')) {
-      return TRUE;
-    }
-
-    // php <5.3.3 has a very broken email validator, so bypass checks
-    if (PHP_VERSION_ID < 50303) {
-      return TRUE;
-    }
-
-    return FALSE !== filter_var($email, FILTER_VALIDATE_EMAIL);
   }
 
   private function getPool(InputInterface $input, $minimumStability = NULL) {

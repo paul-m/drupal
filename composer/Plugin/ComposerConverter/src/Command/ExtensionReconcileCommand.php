@@ -9,8 +9,6 @@ use Composer\Repository\CompositeRepository;
 use Composer\Repository\PlatformRepository;
 use Composer\Installer;
 use Composer\IO\IOInterface;
-use Composer\Command\InitCommand;
-use Composer\Command\RequireCommand;
 use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
 use Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility;
 use Symfony\Component\Console\Input\InputInterface;
@@ -23,13 +21,6 @@ use Symfony\Component\Filesystem\Filesystem;
 class ExtensionReconcileCommand extends ConvertCommandBase {
 
   /**
-   * The composer.json file for this project.
-   *
-   * @var string
-   */
-  private $rootComposerJsonPath;
-
-  /**
    * {@inheritdoc}
    */
   protected function configure() {
@@ -40,23 +31,23 @@ class ExtensionReconcileCommand extends ConvertCommandBase {
         new InputOption('dry-run', NULL, InputOption::VALUE_NONE, 'Display all the changes that would occur, without performing them.'),
         new InputOption('prefer-projects', NULL, InputOption::VALUE_NONE, 'When possible, use d.o project name instead of extension name.'),
         // Options from Composer\Command\RequireCommand.
-        new InputOption('dev', null, InputOption::VALUE_NONE, 'Add requirement to require-dev.'), //?
-        new InputOption('prefer-source', null, InputOption::VALUE_NONE, 'Forces installation from package sources when possible, including VCS information.'),
-        new InputOption('prefer-dist', null, InputOption::VALUE_NONE, 'Forces installation from package dist even for dev versions.'),
-        new InputOption('no-progress', null, InputOption::VALUE_NONE, 'Do not output download progress.'),
-        new InputOption('no-suggest', null, InputOption::VALUE_NONE, 'Do not show package suggestions.'),
-        new InputOption('no-update', null, InputOption::VALUE_NONE, 'Disables the automatic update of the dependencies.'),
-        new InputOption('no-scripts', null, InputOption::VALUE_NONE, 'Skips the execution of all scripts defined in composer.json file.'),
-        new InputOption('update-no-dev', null, InputOption::VALUE_NONE, 'Run the dependency update with the --no-dev option.'),
-        new InputOption('update-with-dependencies', null, InputOption::VALUE_NONE, 'Allows inherited dependencies to be updated, except those that are root requirements.'),
-        new InputOption('update-with-all-dependencies', null, InputOption::VALUE_NONE, 'Allows all inherited dependencies to be updated, including those that are root requirements.'),
-        new InputOption('ignore-platform-reqs', null, InputOption::VALUE_NONE, 'Ignore platform requirements (php & ext- packages).'),
-        new InputOption('prefer-stable', null, InputOption::VALUE_NONE, 'Prefer stable versions of dependencies.'),
-        new InputOption('prefer-lowest', null, InputOption::VALUE_NONE, 'Prefer lowest versions of dependencies.'),
-        new InputOption('sort-packages', null, InputOption::VALUE_NONE, 'Sorts packages when adding/updating a new dependency'),
+        new InputOption('dev', NULL, InputOption::VALUE_NONE, 'Add requirement to require-dev.'),
+        new InputOption('prefer-source', NULL, InputOption::VALUE_NONE, 'Forces installation from package sources when possible, including VCS information.'),
+        new InputOption('prefer-dist', NULL, InputOption::VALUE_NONE, 'Forces installation from package dist even for dev versions.'),
+        new InputOption('no-progress', NULL, InputOption::VALUE_NONE, 'Do not output download progress.'),
+        new InputOption('no-suggest', NULL, InputOption::VALUE_NONE, 'Do not show package suggestions.'),
+        new InputOption('no-update', NULL, InputOption::VALUE_NONE, 'Disables the automatic update of the dependencies.'),
+        new InputOption('no-scripts', NULL, InputOption::VALUE_NONE, 'Skips the execution of all scripts defined in composer.json file.'),
+        new InputOption('update-no-dev', NULL, InputOption::VALUE_NONE, 'Run the dependency update with the --no-dev option.'),
+        new InputOption('update-with-dependencies', NULL, InputOption::VALUE_NONE, 'Allows inherited dependencies to be updated, except those that are root requirements.'),
+        new InputOption('update-with-all-dependencies', NULL, InputOption::VALUE_NONE, 'Allows all inherited dependencies to be updated, including those that are root requirements.'),
+        new InputOption('ignore-platform-reqs', NULL, InputOption::VALUE_NONE, 'Ignore platform requirements (php & ext- packages).'),
+        new InputOption('prefer-stable', NULL, InputOption::VALUE_NONE, 'Prefer stable versions of dependencies.'),
+        new InputOption('prefer-lowest', NULL, InputOption::VALUE_NONE, 'Prefer lowest versions of dependencies.'),
+        new InputOption('sort-packages', NULL, InputOption::VALUE_NONE, 'Sorts packages when adding/updating a new dependency'),
         new InputOption('optimize-autoloader', 'o', InputOption::VALUE_NONE, 'Optimize autoloader during autoloader dump'),
         new InputOption('classmap-authoritative', 'a', InputOption::VALUE_NONE, 'Autoload classes from the classmap only. Implicitly enables `--optimize-autoloader`.'),
-        new InputOption('apcu-autoloader', null, InputOption::VALUE_NONE, 'Use APCu to cache found/not-found classes.'),
+        new InputOption('apcu-autoloader', NULL, InputOption::VALUE_NONE, 'Use APCu to cache found/not-found classes.'),
       ])
       ->setHelp(
         <<<EOT
@@ -98,12 +89,12 @@ EOT
     $dry_run = $input->getOption('dry-run');
     $working_dir = realpath($input->getOption('working-dir'));
 
-    $this->rootComposerJsonPath = $working_dir . '/composer.json';
+    $rootComposerJsonPath = $working_dir . '/composer.json';
 
     // Make a reconciler for our root composer.json.
     $io->write(' - Scanning the file system for extensions not in the composer.json file...');
     $reconciler = new ExtensionReconciler(
-      new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)),
+      new JsonFileUtility(new JsonFile($rootComposerJsonPath)),
       $working_dir,
       $input->getOption('prefer-projects')
     );
@@ -115,7 +106,7 @@ EOT
     if ($add_packages) {
       // Use the factory to create a new Composer object, so that we can use
       // changes in our root composer.json.
-      $composer = Factory::create($io, $this->rootComposerJsonPath);
+      $composer = Factory::create($io, $rootComposerJsonPath);
 
       // Populate $this->repos so that our superclass can use it.
       $this->repos = new CompositeRepository(array_merge(
@@ -140,12 +131,12 @@ EOT
         }
         else {
           // Add our new dependencies.
-          $manipulator = new JsonManipulator(file_get_contents($this->rootComposerJsonPath));
-          $sort_packages = $input->getOption('sort-packages') || (new JsonFileUtility(new JsonFile($this->rootComposerJsonPath)))->getSortPackages();
+          $manipulator = new JsonManipulator(file_get_contents($rootComposerJsonPath));
+          $sort_packages = $input->getOption('sort-packages') || (new JsonFileUtility(new JsonFile($rootComposerJsonPath)))->getSortPackages();
           foreach ($this->formatRequirements($requirements) as $package => $constraint) {
             $manipulator->addLink('require', $package, $constraint, $sort_packages);
           }
-          file_put_contents($this->rootComposerJsonPath, $manipulator->getContents());
+          file_put_contents($rootComposerJsonPath, $manipulator->getContents());
         }
       }
 
@@ -227,7 +218,7 @@ EOT
 
     $status = $install->run();
     if ($status !== 0) {
-//      $this->revertComposerFile(FALSE);
+      // $this->revertComposerFile(FALSE);
     }
 
     return $status;
