@@ -56,8 +56,9 @@ class ConvertCommandBase extends BaseCommand {
    * @param mixed $phpVersion
    * @param mixed $preferredStability
    * @param mixed $checkProvidedVersions
-   * @return string[]
-   *   Array of package names and constraints as a string.
+   * @return string[]|false
+   *   Array of package names and constraints as a string, or FALSE if there are no
+   *   requirements.
    */
   protected function determineRequirements(InputInterface $input, OutputInterface $output, $requires = [], $phpVersion = NULL, $preferredStability = 'stable', $checkProvidedVersions = TRUE) {
     if ($requires) {

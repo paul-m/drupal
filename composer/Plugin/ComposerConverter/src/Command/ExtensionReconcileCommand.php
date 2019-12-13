@@ -51,12 +51,14 @@ class ExtensionReconcileCommand extends ConvertCommandBase {
       ])
       ->setHelp(
         <<<EOT
-This command does the following things:
+This command performs the following actions, which might be destructive:
  * Determine if there are any extension on the file system which are not
    represented in the root composer.json.
  * Declare these extensions within composer.json so that you can use Composer
    to manage them.
  * Remove the existing extensions from the file system.
+
+Run the command with option --dry-run to rehearse the process.
 EOT
     );
   }
@@ -65,19 +67,11 @@ EOT
    * {@inheritdoc}
    */
   protected function interact(InputInterface $input, OutputInterface $output) {
-    if (!$input->getOption('no-interaction')) {
-      $style = new SymfonyStyle($input, $output);
-      $output->write('<info>The following actions will be performed:</info>');
-      $item_list = [
-        'Determine if there are any extension on the file system which are not represented in composer.json.',
-        'Declare these extensions within composer.json so that you can use Composer to manage them.',
-        'Remove the existing extensions from the file system.',
-      ];
-      $style->listing($item_list);
-      $helper = $this->getHelper('question');
-      if (!$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', FALSE))) {
-        throw new \RuntimeException('User cancelled.', 1);
-      }
+    $output->writeln('<info>Warning</info>:');
+    $output->writeln($this->getHelp());
+    $helper = $this->getHelper('question');
+    if (!$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', FALSE))) {
+      throw new \RuntimeException('User cancelled.', 1);
     }
   }
 
@@ -160,7 +154,7 @@ EOT
           return $this->doUpdate($input, $output, $io, $requirements);
         }
         catch (\Exception $e) {
-          //    $this->revertComposerFile(false);
+          // $this->revertComposerFile(false);
           throw $e;
         }
       }
@@ -184,8 +178,9 @@ EOT
    * @param \Symfony\Component\Console\Input\InputInterface $input
    * @param \Symfony\Component\Console\Output\OutputInterface $output
    * @param \Drupal\Composer\Plugin\ComposerConverter\Command\IOInterface $io
-   * @param array $requirements
-   * @return mixed
+   * @param string[] $requirements
+   *   An array of requirements as package name and version constraint, such as
+   *   'drupal/examples ^1.0'.
    */
   private function doUpdate(InputInterface $input, OutputInterface $output, IOInterface $io, array $requirements) {
     // Update packages
