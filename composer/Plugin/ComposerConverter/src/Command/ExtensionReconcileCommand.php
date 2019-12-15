@@ -9,6 +9,7 @@ use Composer\Repository\CompositeRepository;
 use Composer\Repository\PlatformRepository;
 use Composer\Installer;
 use Composer\IO\IOInterface;
+use Drupal\Composer\Plugin\ComposerConverter\Extension\ExtensionRepository;
 use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
 use Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility;
 use Symfony\Component\Console\Input\InputInterface;
@@ -165,6 +166,17 @@ EOT
       $style = new SymfonyStyle($input, $output);
       $io->write(' - Discovered extensions which are not in the original composer.json, and which do not have drupal.org projects. These extensions will need to be added manually if you wish to manage them through Composer:');
       $style->listing($exotic);
+    }
+
+    // Discover orphaned legacy extensions with *.info files.
+    $legacy_extensions = ExtensionRepository::create($rootComposerJsonPath, ExtensionRepository::findInfoFiles($rootComposerJsonPath));
+    if ($extensions = $legacy_extensions->getExtensions()) {
+      $rootPathLength = strlen(dirname($rootComposerJsonPath));
+      $legacy_paths = [' - Discovered legacy extensions with *.info files:'];
+      foreach ($extensions as $machine_name => $extension) {
+        $legacy_paths[] = '   ' . substr($extension->getInfoFile()->getPathname(), $rootPathLength);
+      }
+      $io->write($legacy_paths);
     }
 
     $io->write(['<info>Finished!</info>', '']);
