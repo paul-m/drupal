@@ -9,7 +9,6 @@ use Composer\Repository\CompositeRepository;
 use Composer\Repository\PlatformRepository;
 use Composer\Installer;
 use Composer\IO\IOInterface;
-use Drupal\Composer\Plugin\ComposerConverter\Extension\ExtensionRepository;
 use Drupal\Composer\Plugin\ComposerConverter\ExtensionReconciler;
 use Drupal\Composer\Plugin\ComposerConverter\JsonFileUtility;
 use Symfony\Component\Console\Input\InputInterface;
@@ -68,11 +67,13 @@ EOT
    * {@inheritdoc}
    */
   protected function interact(InputInterface $input, OutputInterface $output) {
-    $output->writeln('<info>Warning</info>:');
-    $output->writeln($this->getHelp());
-    $helper = $this->getHelper('question');
-    if (!$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', FALSE))) {
-      throw new \RuntimeException('User cancelled.', 1);
+    if (!$input->getOption('no-interaction')) {
+      $output->writeln('<info>Warning</info>:');
+      $output->writeln($this->getHelp());
+      $helper = $this->getHelper('question');
+      if (!$helper->ask($input, $output, new ConfirmationQuestion('Continue? ', FALSE))) {
+        throw new \RuntimeException('User cancelled.', 1);
+      }
     }
   }
 
@@ -169,15 +170,16 @@ EOT
     }
 
     // Discover orphaned legacy extensions with *.info files.
-    $legacy_extensions = ExtensionRepository::create($rootComposerJsonPath, ExtensionRepository::findInfoFiles($rootComposerJsonPath));
-    if ($extensions = $legacy_extensions->getExtensions()) {
+    // @todo Figure out if we really want to do this.
+    /*    $legacy_extensions = ExtensionRepository::create($rootComposerJsonPath, ExtensionRepository::findInfoFiles($rootComposerJsonPath));
+      if ($extensions = $legacy_extensions->getExtensions()) {
       $rootPathLength = strlen(dirname($rootComposerJsonPath));
       $legacy_paths = [' - Discovered legacy extensions with *.info files:'];
       foreach ($extensions as $machine_name => $extension) {
-        $legacy_paths[] = '   ' . substr($extension->getInfoFile()->getPathname(), $rootPathLength);
+      $legacy_paths[] = '   ' . substr($extension->getInfoFile()->getPathname(), $rootPathLength);
       }
       $io->write($legacy_paths);
-    }
+      } */
 
     $io->write(['<info>Finished!</info>', '']);
   }

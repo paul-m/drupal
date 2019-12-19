@@ -4,7 +4,6 @@ namespace Drupal\BuildTests\Composer\Plugin\ComposerConverter;
 
 use Drupal\BuildTests\Framework\BuildTestBase;
 use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Finder\Finder;
 
 /**
  * @group ComposerConverter

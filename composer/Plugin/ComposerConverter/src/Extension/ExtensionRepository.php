@@ -7,6 +7,8 @@ use Symfony\Component\Yaml\Yaml;
 
 /**
  * Given a place to search, find all the Drupal extensions in the filesystem.
+ *
+ * @todo Figure out whether we want to discover *.info files.
  */
 class ExtensionRepository {
 
